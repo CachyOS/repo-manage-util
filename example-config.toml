@@ -1,0 +1,101 @@
+# example configuration
+
+# the config is very similar to repoctl config
+
+[profiles.repof]
+  # Full path to the repo
+  repo = "/home/testuser/repos/x86_64/os/repof/repof.db.tar.zst"
+
+  # add_params is the set of parameters that will be passed to repo-add
+  # uncomment/remove to use default value
+  add_params = ["--sign", "--include-sigs"]
+
+  # rm_params is the set of parameters that will be passed to repo-remove
+  # uncomment/remove to use default value
+  rm_params = ["--sign"]
+
+  # ignore_aur is a set of package names that are ignored in conjunction
+  # TODO: implement AUR functionality
+  #ignore_aur = ["imaginable-pkg"]
+
+  # require_signature prevents packages from being added that do not
+  # also have a signature file.
+  require_signature = true
+
+  # backup specifies whether package files should be backed up or deleted.
+  # If it is set to false, then obsolete package files are deleted.
+  backup = true
+
+  # backup_dir specifies which directory backups are stored in.
+  # - If a relative path is given, then it is interpreted as relative to
+  #   the repository directory.
+  # - If the path here resolves to the same as repo, then obsolete packages
+  #   are effectively ignored by repoctl, if backup is true.
+  backup_dir = "/home/testuser/backup_repos/repof"
+
+  # debug_dir specifies which directory with debug package to be stored.
+  # Expects full path
+  debug_dir = "/home/testuser/debug_repos/repof"
+
+  # backup_num specifies how many packages should be backed up.
+  # If it is not set, then unlimited amount allowed.
+  #backup_num = 2
+
+  # interactive specifies that repoctl should ask before doing anything
+  # destructive.
+  interactive = false
+
+  # reference repo is the full path to the local repo to compare our profile repo against,
+  # copies packages from in case update available
+  # TODO: implement such functionality
+  #reference_repo = "/home/testanotheruser/repos/reposecond-super/reposecond-super.db.tar.zst"
+
+[profiles.reposecond]
+  # repo is the full path to the repository that will be managed by repoctl.
+  # The packages that belong to the repository are assumed to lie in the
+  # same folder.
+  repo = "/home/testuser/repos/x86_64/os/reposecond/reposecond.db.tar.zst"
+
+  # add_params is the set of parameters that will be passed to repo-add
+  # uncomment/remove to use default value
+  add_params = ["--sign", "--include-sigs"]
+
+  # rm_params is the set of parameters that will be passed to repo-remove
+  # uncomment/remove to use default value
+  rm_params = ["--sign"]
+
+  # ignore_aur is a set of package names that are ignored in conjunction
+  # TODO: implement AUR functionality
+  #ignore_aur = ["imaginable-pkg"]
+
+  # require_signature prevents packages from being added that do not
+  # also have a signature file.
+  require_signature = true
+
+  # backup specifies whether package files should be backed up or deleted.
+  # If it is set to false, then obsolete package files are deleted.
+  backup = true
+
+  # backup_dir specifies which directory backups are stored in.
+  # - If a relative path is given, then it is interpreted as relative to
+  #   the repository directory.
+  # - If the path here resolves to the same as repo, then obsolete packages
+  #   are effectively ignored by repoctl, if backup is true.
+  backup_dir = "/home/testuser/backup_repos/reposecond"
+
+  # debug_dir specifies which directory with debug package to be stored.
+  # Expects full path
+  debug_dir = "/home/testuser/debug_repos/reposecond"
+
+  # backup_num specifies how many packages should be backed up.
+  # If it is not set, then unlimited amount allowed.
+  #backup_num = 2
+
+  # interactive specifies that repoctl should ask before doing anything
+  # destructive.
+  interactive = false
+
+  # reference repo is the full path to the local repo to compare our profile repo against,
+  # copies packages from in case update available
+  # TODO: implement such functionality
+  #reference_repo = "/home/testanotheruser/repos/reposecond-super/reposecond-super.db.tar.zst"

@@ -360,8 +360,20 @@ fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
         // TODO(vnepogodin): make a prompt on every run here in case iteractive is on
         for filepath in versions.iter().map(|x| &x.0) {
             log::debug!("Removing package version: {filepath}");
+
+            // remove the actual package file
             if let Err(file_err) = fs::remove_file(filepath) {
                 log::error!("Failed to remove the backup file '{filepath}': {file_err}");
+            }
+
+            // remove package signature
+            let sig_filepath = format!("{filepath}.sig");
+            if Path::new(&sig_filepath).exists() {
+                if let Err(file_err) = fs::remove_file(&sig_filepath) {
+                    log::error!(
+                        "Failed to remove the backup file sig '{sig_filepath}': {file_err}"
+                    );
+                }
             }
         }
     }

@@ -78,6 +78,37 @@ pub fn get_stale_packages(repo_db_path: &str) -> Result<Vec<String>> {
     Ok(stale_pkgs)
 }
 
+// Gets filenames of stale packages from the repo DB
+pub fn get_stale_filenames(repo_db_path: &str) -> Result<Vec<String>> {
+    // we iterate through DB with alpm crate, and check for each package
+    // if the package file still exist in the repo directory
+    let alpm_handle =
+        init_profile_repo(repo_db_path).context("Failed to init alpm for stale packages")?;
+
+    let repo_dir = Path::new(&repo_db_path).parent().unwrap();
+
+    // iterate through every package in the database using map iter
+    let stale_pkgs: Vec<String> = alpm_handle
+        .syncdbs()
+        .iter()
+        .map(alpm::Db::pkgs)
+        .flatten()
+        .filter(|x| {
+            // just check if those package exist, if not insert into state pkgs which contains
+            // package names
+            let pkg_filename = x.filename().expect("Invalid package doesn't have filename");
+            let pkg_filepath = format!("{}/{pkg_filename}", repo_dir.to_str().unwrap());
+            !Path::new(&pkg_filepath).exists()
+        })
+        .map(|x| x.filename().unwrap().to_string())
+        .collect();
+
+    // cleanup temp dir after we are done
+    cleanup_alpm_tempdir(&alpm_handle)?;
+
+    Ok(stale_pkgs)
+}
+
 // gets packages which are not yet present in the DB
 pub fn get_brand_new_packages(repo_db_path: &str) -> Result<Vec<String>> {
     let repo_dir = Path::new(&repo_db_path).parent().unwrap();

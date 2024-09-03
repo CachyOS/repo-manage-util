@@ -242,11 +242,13 @@ fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     }
 
     // 2. handle stale packages
-    let stale_pkgs =
-        alpm_helper::get_stale_packages(&profile.repo).context("Failed to get stale pkgs")?;
 
-    for stale_pkg in stale_pkgs {
-        let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&stale_pkg);
+    // we want to get here filenames of stale packages
+    let stale_filenames =
+        alpm_helper::get_stale_filenames(&profile.repo).context("Failed to get stale pkgs with filename")?;
+
+    for stale_filename in stale_filenames {
+        let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&stale_filename);
         log::info!("Found stale package in repo '{repo_db_prefix}': '{pkg_pair}'");
     }
 

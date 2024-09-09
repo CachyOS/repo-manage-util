@@ -244,8 +244,8 @@ fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // 2. handle stale packages
 
     // we want to get here filenames of stale packages
-    let stale_filenames =
-        alpm_helper::get_stale_filenames(&profile.repo).context("Failed to get stale pkgs with filename")?;
+    let stale_filenames = alpm_helper::get_stale_filenames(&profile.repo)
+        .context("Failed to get stale pkgs with filename")?;
 
     for stale_filename in stale_filenames {
         let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&stale_filename);
@@ -430,6 +430,16 @@ fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> 
             // we would rather be fail safe here and just report without *panicing*
             if let Err(rm_err) = fs::remove_file(outdated_pkg) {
                 log::error!("Failed to remove outdated package '{outdated_pkg}': {rm_err}");
+            }
+
+            // remove package signature
+            let sig_filepath = format!("{outdated_pkg}.sig");
+            if Path::new(&sig_filepath).exists() {
+                if let Err(file_err) = fs::remove_file(&sig_filepath) {
+                    log::error!(
+                        "Failed to remove outdated package sig '{sig_filepath}': {file_err}"
+                    );
+                }
             }
         }
     }

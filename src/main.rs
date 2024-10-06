@@ -424,9 +424,15 @@ fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> 
         // TODO(vnepogodin): make a prompt on every run here in case iteractive is on
         if profile.backup && profile.backup_dir != Some(profile.repo.clone()) {
             log::debug!("mv into backup dir '{outdated_pkg}'..");
+
+            let outdated_pkg_entry = pkg_utils::get_pkg_db_pair_from_path(outdated_pkg);
+            log::info!("backup '{outdated_pkg_entry}'..");
             handle_pkgfile_move(outdated_pkg, profile.backup_dir.as_ref().unwrap())?;
         } else {
-            log::debug!("rm '{outdated_pkg}'..");
+            log::debug!("removing '{outdated_pkg}'..");
+
+            let outdated_pkg_entry = pkg_utils::get_pkg_db_pair_from_path(outdated_pkg);
+            log::info!("rm '{outdated_pkg_entry}'..");
             // we would rather be fail safe here and just report without *panicing*
             if let Err(rm_err) = fs::remove_file(outdated_pkg) {
                 log::error!("Failed to remove outdated package '{outdated_pkg}': {rm_err}");

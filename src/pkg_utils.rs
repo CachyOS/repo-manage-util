@@ -135,7 +135,7 @@ pub fn get_pkgver_from_filename(filename: &str) -> &str {
 pub fn get_pkg_db_pair_from_path(file_path: &str) -> String {
     // NOTE: we can do here same as for pkgname and pkgver,
     // and just return &str which points to part of file_path
-    let pkg_filename = Path::new(&file_path).file_name().unwrap().to_str().unwrap();
+    let pkg_filename = Path::new(file_path).file_name().unwrap().to_str().unwrap();
     let pkg_name = get_pkgname_from_filename(pkg_filename);
     let pkg_ver = get_pkgver_from_filename(pkg_filename);
 
@@ -249,6 +249,16 @@ mod tests {
         );
         assert_eq!(get_pkgname_from_filename("argon2-20190702-5.1-x86_64.pkg.tar.zst"), "argon2");
         assert_eq!(get_pkgname_from_filename("dash-0.5.12-1.1-x86_64.pkg.tar.zst"), "dash");
+        assert_eq!(get_pkgname_from_filename("emacs-29.4-2.1-x86_64.pkg.tar.zst"), "emacs");
+        assert_eq!(
+            get_pkgname_from_filename("emacs-nativecomp-29.4-2.1-x86_64.pkg.tar.zst"),
+            "emacs-nativecomp"
+        );
+        assert_eq!(get_pkgname_from_filename("emacs-nox-29.4-2.1-x86_64.pkg.tar.zst"), "emacs-nox");
+        assert_eq!(
+            get_pkgname_from_filename("emacs-wayland-29.4-2.1-x86_64.pkg.tar.zst"),
+            "emacs-wayland"
+        );
     }
 
     #[test]

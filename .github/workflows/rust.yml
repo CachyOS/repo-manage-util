@@ -23,7 +23,7 @@ jobs:
       image: archlinux
     steps:
       - name: Install Packages
-        run: pacman -Syu clang gcc --noconfirm --needed
+        run: pacman -Syu clang gcc pkg-config --noconfirm --needed
 
       - uses: actions/checkout@v4
 

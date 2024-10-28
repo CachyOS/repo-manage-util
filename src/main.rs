@@ -9,33 +9,61 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
+use config::Profile;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Args, Debug)]
+struct SingleProfileCli {
     /// Profile to use from the configuration file
     #[arg(short, long)]
     profile: String,
 }
 
+#[derive(Args, Debug)]
+struct FromToProfileCli {
+    /// Profile to use from the configuration file (for move-pkgs) FROM repo
+    #[arg(short, long)]
+    from: String,
+    /// Profile to use from the configuration file (for move-pkgs) TO repo
+    #[arg(short, long)]
+    to: String,
+}
+
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Reset the repository
-    Reset,
+    Reset(SingleProfileCli),
     /// Update the repository
-    Update,
+    Update(SingleProfileCli),
     /// Moves packages from current directory into the repository
-    MovePkgsToRepo,
+    MovePkgsToRepo(SingleProfileCli),
+    /// Moves packages from one repository to another repository
+    MovePkgs(FromToProfileCli),
     /// Check if the packages are up-to-date
-    IsPkgsUpToDate,
+    IsPkgsUpToDate(SingleProfileCli),
     /// Cleans up the backup directory,
     /// removing the N amount of packages if configured to do so
-    CleanupBackupDir,
+    CleanupBackupDir(SingleProfileCli),
     // Check if we have only certain amount of debug packages in the debug repository
     // IsDebugPkgsOk, // ok maybe not implemented
+}
+
+fn get_profile_from_config<'a>(
+    profile_name: &'a str,
+    config: &'a config::Config,
+) -> Result<&'a config::Profile> {
+    config.profiles.get(profile_name).ok_or(anyhow::anyhow!("Profile {} not found", profile_name))
+}
+
+fn get_repo_dir_from_profile(profile: &config::Profile) -> &Path {
+    Path::new(&profile.repo).parent().unwrap()
 }
 
 fn main() -> Result<()> {
@@ -48,39 +76,53 @@ fn main() -> Result<()> {
     let config_path = config::get_config_path()?;
     let config = config::parse_config_file(&config_path)?;
 
-    // get profile from config
-    let profile = config
-        .profiles
-        .get(&args.profile)
-        .ok_or(anyhow::anyhow!("Profile {} not found", args.profile))?;
-
-    let repo_path = Path::new(&profile.repo);
-    let repo_dir = repo_path.parent().unwrap();
-
-    let repo_db_prefix = pkg_utils::get_repo_db_prefix(&profile.repo);
-    let repo_db_pattern = format!("{}/{repo_db_prefix}.*", repo_dir.to_str().unwrap());
-
-    log::debug!("repo db path := {repo_db_pattern}");
-
     match &args.command {
-        Commands::Reset => {
+        Commands::Reset(args) => {
+            let profile = get_profile_from_config(&args.profile, &config)?;
+            let repo_dir = get_repo_dir_from_profile(profile);
+
+            let repo_db_prefix = pkg_utils::get_repo_db_prefix(&profile.repo);
+            let repo_db_pattern = format!("{}/{repo_db_prefix}.*", repo_dir.to_str().unwrap());
+
+            log::debug!("repo db path := {repo_db_pattern}");
+
             do_repo_reset(profile, &repo_db_pattern, repo_dir)?;
             // TODO(vnepogodin): handle debug packages
             // move them to debug folder if is set
         },
-        Commands::Update => {
+        Commands::Update(args) => {
+            let profile = get_profile_from_config(&args.profile, &config)?;
+            let repo_dir = get_repo_dir_from_profile(profile);
+
             do_repo_update(profile, repo_dir)?;
             // TODO(vnepogodin): handle debug packages
             // move them to debug folder if is set
         },
-        Commands::MovePkgsToRepo => {
+        Commands::MovePkgsToRepo(args) => {
+            let profile = get_profile_from_config(&args.profile, &config)?;
+            let repo_dir = get_repo_dir_from_profile(profile);
+
             do_repo_move_pkgs(profile, repo_dir)?;
         },
-        Commands::IsPkgsUpToDate => {
+        Commands::IsPkgsUpToDate(args) => {
+            let profile = get_profile_from_config(&args.profile, &config)?;
+            let repo_dir = get_repo_dir_from_profile(profile);
+
             do_repo_checkup(profile, repo_dir)?;
         },
-        Commands::CleanupBackupDir => {
+        Commands::CleanupBackupDir(args) => {
+            let profile = get_profile_from_config(&args.profile, &config)?;
+
             do_backup_repo_cleanup(profile)?;
+        },
+        Commands::MovePkgs(args) => {
+            let from_profile = get_profile_from_config(&args.from, &config)?;
+            let from_repo_dir = get_repo_dir_from_profile(from_profile);
+
+            let to_profile = get_profile_from_config(&args.to, &config)?;
+            let to_repo_dir = get_repo_dir_from_profile(to_profile);
+
+            move_packages_from_repo_to_repo(from_profile, from_repo_dir, to_profile, to_repo_dir)?;
         },
     }
 
@@ -255,14 +297,15 @@ fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // 3. handle ref repository
     // Check for newer packages in the reference repository
     if let Some(reference_repo_path) = &profile.reference_repo {
-        let packages_to_copy = alpm_helper::get_newer_packages_from_reference(
-            &profile.repo,
-            reference_repo_path,
-        )
-        .context("Failed to get newer packages from reference repo")?;
+        let packages_to_copy =
+            alpm_helper::get_newer_packages_from_reference(&profile.repo, reference_repo_path)
+                .context("Failed to get newer packages from reference repo")?;
 
         if !packages_to_copy.is_empty() {
-            let new_pkgname_list = packages_to_copy.iter().map(|x| pkg_utils::get_pkg_db_pair_from_path(&x)).collect::<Vec<_>>();
+            let new_pkgname_list = packages_to_copy
+                .iter()
+                .map(|x| pkg_utils::get_pkg_db_pair_from_path(x))
+                .collect::<Vec<_>>();
             log::info!("Found new pkgs from ref repo '{repo_db_prefix}': {new_pkgname_list:?}");
         }
 
@@ -321,7 +364,7 @@ fn do_debug_packages_check(profile: &config::Profile, repo_dir: &Path) -> Result
     for pkg_to_move in &pkgs_list
     // .iter().map(|x| Path::new(x))
     {
-        let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&pkg_to_move);
+        let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(pkg_to_move);
         log::debug!("Found debug package in repo: {pkg_pair}");
         // log::debug!("Moving debug package into debug dir: {pkg_to_move}");
         // if let Err(file_err) = fs::rename_file(filepath) {
@@ -389,11 +432,12 @@ fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
 // 1. moves package files in the src repo to the dest repo
 // 2. removes packages from the src repo DB
 // 3. adds packages to the dest repo DB
-fn move_packages_from_repo_to_repo(src_repo_path: &str, dest_repo_path: &str) -> Result<()> {
-    // 1. moving packages from src dir
-    let src_repo_dir = Path::new(src_repo_path).parent().expect("Failed to get parent dir");
-    let dest_repo_dir = Path::new(dest_repo_path).parent().expect("Failed to get parent dir");
-
+fn move_packages_from_repo_to_repo(
+    src_profile: &Profile,
+    src_repo_dir: &Path,
+    dest_profile: &Profile,
+    dest_repo_dir: &Path,
+) -> Result<()> {
     // here we get only packages without signature
     let pkg_to_move_list =
         glob::glob(&format!("{}/*.pkg.tar.zst", src_repo_dir.to_str().unwrap()))?
@@ -403,14 +447,35 @@ fn move_packages_from_repo_to_repo(src_repo_path: &str, dest_repo_path: &str) ->
     // NOTE: probably we would rather want here to see filenames instead of full paths
     log::info!("Found packages to move in src dir: {pkg_to_move_list:?}");
 
-    if let Err(pkg_move_err) =
-        handle_pkgfiles_move(&pkg_to_move_list, dest_repo_dir.to_str().unwrap())
-    {
-        log::error!("Error occured while moving package files: {pkg_move_err}");
+    // lets invalidate packages if they are without signatures
+    let mut invalid_pkgs: Vec<String> = vec![];
+    for pkg_to_move in &pkg_to_move_list {
+        // check for signature if we require it
+        if dest_profile.require_signature && !Path::new(&format!("{pkg_to_move}.sig")).exists() {
+            let pkg_db_entry = pkg_utils::get_pkg_db_pair_from_path(pkg_to_move);
+            log::error!("Found package without required signature: '{pkg_db_entry}'");
+            invalid_pkgs.push(pkg_to_move.clone());
+        }
+    }
+    if !invalid_pkgs.is_empty() {
+        log::error!("Aborting due to found 'invalid' packages. Cannot proceed further");
         return Ok(());
     }
 
-    // TODO(vnepogodin): modify source repo DB (e.g remove the moved packages from the db)
+    if let Err(pkg_move_err) =
+        handle_pkgfiles_move(&pkg_to_move_list, dest_repo_dir.to_str().unwrap())
+    {
+        log::error!("Error occurred while moving package files: {pkg_move_err}");
+        return Ok(());
+    }
+
+    // modify source repo DB (e.g remove the moved packages from the db)
+    let added_pkgs_files = pkg_utils::replace_base_dir_for_pkgs(&pkg_to_move_list, dest_repo_dir);
+    let removal_pkgs =
+        alpm_helper::get_packages_from_filepaths(&src_profile.repo, &pkg_to_move_list)?;
+
+    repo_utils::handle_repo_remove(src_profile, &removal_pkgs)?;
+    repo_utils::handle_repo_add(dest_profile, &added_pkgs_files)?;
 
     log::info!("Repo MovePkgsFromRepo2Repo is done!");
 

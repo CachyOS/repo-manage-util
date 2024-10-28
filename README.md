@@ -7,6 +7,7 @@ A command-line utility for managing Arch Linux repositories.
 - **Reset:** Resets the repository database and removes outdated packages.
 - **Update:** Updates the repository database with new packages and removes stale packages.
 - **MovePkgsToRepo:** Moves packages from the current directory to the repository.
+- **MovePkgs:** Moves packages from one repository to another repository.
 - **IsPkgsUpToDate:** Checks if the packages in the repository are up-to-date.
 - **CleanupBackupDir:** Cleans up the backup directory, removing older package versions.
 
@@ -19,6 +20,7 @@ You can install `repo-manage-util` directly from the AUR using your preferred AU
 TBD
 
 ### Building from Source
+
 Or can be built from source:
 
 ```bash
@@ -52,7 +54,7 @@ interactive = false
 
 - **`[profiles.myrepo]`**: This defines a profile named "myrepo". You can have multiple profiles for different repositories.
 - **`repo = "/path/to/myrepo.db.tar.zst"`**: This specifies the path to the repository database file (the `.db.tar.zst` file).
-- **`add_params = ["--sign", "--include-sigs"]`**: These are additional parameters that will be passed to the `repo-add` command when adding packages to the repository.  In this case, it's telling `repo-add` to sign the database and include signatures.
+- **`add_params = ["--sign", "--include-sigs"]`**: These are additional parameters that will be passed to the `repo-add` command when adding packages to the repository. In this case, it's telling `repo-add` to sign the database and include signatures.
 - **`rm_params = ["--sign"]`**: Similar to `add_params`, these are additional parameters passed to the `repo-remove` command, used when removing packages from the repository. Here, it tells `repo-remove` to sign the database after removal.
 - **`require_signature = true`**: This setting enforces that packages must have valid signatures before being added to the repository. This is a good security practice.
 - **`backup = true`**: This enables the backup feature. When enabled, outdated packages will be moved to the backup directory instead of being deleted.
@@ -84,6 +86,7 @@ repo-manage-util --profile <PROFILE> [COMMAND]
 - **reset:** Resets the repository.
 - **update:** Updates the repository.
 - **move-pkgs-to-repo:** Moves packages from the current directory to the repository.
+- **move-pkgs** Moves packages from one repository to another repository.
 - **is-pkgs-up-to-date:** Checks if the packages in the repository are up-to-date.
 - **cleanup-backup-dir:** Cleans up the backup directory.
 
@@ -102,4 +105,3 @@ Contributions are welcome! Please open an issue or submit a pull request on GitH
 ## License
 
 This project is licensed under the GPLv3 License. See the LICENSE file for details.
-

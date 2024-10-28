@@ -95,31 +95,37 @@ mod tests {
 
         let expected_config = Config {
             profiles: HashMap::from([
-                ("repof".to_string(), Profile {
-                    repo: "/home/testuser/repos/x86_64/os/repof/repof.db.tar.zst".to_string(),
-                    add_params: vec!["--sign".to_string(), "--include-sigs".to_string()],
-                    rm_params: vec!["--sign".to_string()],
-                    require_signature: true,
-                    backup: true,
-                    backup_num: None,
-                    backup_dir: Some("/home/testuser/backup_repos/repof".to_string()),
-                    debug_dir: Some("/home/testuser/debug_repos/repof".to_string()),
-                    interactive: false,
-                    reference_repo: None,
-                }),
-                ("reposecond".to_string(), Profile {
-                    repo: "/home/testuser/repos/x86_64/os/reposecond/reposecond.db.tar.zst"
-                        .to_string(),
-                    add_params: vec!["--sign".to_string(), "--include-sigs".to_string()],
-                    rm_params: vec!["--sign".to_string()],
-                    require_signature: true,
-                    backup: true,
-                    backup_num: None,
-                    backup_dir: Some("/home/testuser/backup_repos/reposecond".to_string()),
-                    debug_dir: Some("/home/testuser/debug_repos/reposecond".to_string()),
-                    interactive: false,
-                    reference_repo: None,
-                }),
+                (
+                    "repof".to_string(),
+                    Profile {
+                        repo: "/home/testuser/repos/x86_64/os/repof/repof.db.tar.zst".to_string(),
+                        add_params: vec!["--sign".to_string(), "--include-sigs".to_string()],
+                        rm_params: vec!["--sign".to_string()],
+                        require_signature: true,
+                        backup: true,
+                        backup_num: None,
+                        backup_dir: Some("/home/testuser/backup_repos/repof".to_string()),
+                        debug_dir: Some("/home/testuser/debug_repos/repof".to_string()),
+                        interactive: false,
+                        reference_repo: None,
+                    },
+                ),
+                (
+                    "reposecond".to_string(),
+                    Profile {
+                        repo: "/home/testuser/repos/x86_64/os/reposecond/reposecond.db.tar.zst"
+                            .to_string(),
+                        add_params: vec!["--sign".to_string(), "--include-sigs".to_string()],
+                        rm_params: vec!["--sign".to_string()],
+                        require_signature: true,
+                        backup: true,
+                        backup_num: None,
+                        backup_dir: Some("/home/testuser/backup_repos/reposecond".to_string()),
+                        debug_dir: Some("/home/testuser/debug_repos/reposecond".to_string()),
+                        interactive: false,
+                        reference_repo: None,
+                    },
+                ),
             ]),
         };
 

@@ -164,6 +164,15 @@ pub fn remove_pkgs_without_sig(pkgs_list: &mut Vec<String>) {
     });
 }
 
+pub fn replace_base_dir_for_pkgs(pkgs_list: &[String], base_dir: &Path) -> Vec<String> {
+    pkgs_list
+        .iter()
+        .map(|file| {
+            base_dir.join(Path::new(file).file_name().unwrap()).to_str().unwrap().to_owned()
+        })
+        .collect::<Vec<_>>()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::pkg_utils::*;
@@ -326,11 +335,13 @@ mod tests {
         ];
         let pkg_version_slice = get_stale_pkg_versions(&pkgs_list, 2);
 
-        let expected_version_slice: PackageMap =
-            HashMap::from([("cachyos-cli-installer-new".to_string(), vec![(
+        let expected_version_slice: PackageMap = HashMap::from([(
+            "cachyos-cli-installer-new".to_string(),
+            vec![(
                 "local_repo/x86_64/cachyos-cli-installer-new-0.7.0-1-x86_64.pkg.tar.zst".into(),
                 alpm::Version::new("0.7.0-1"),
-            )])]);
+            )],
+        )]);
 
         assert_eq!(pkg_version_slice, expected_version_slice);
 
@@ -338,12 +349,18 @@ mod tests {
             get_stale_pkg_versions(&pkgs_list, 1).into_iter().collect::<Vec<_>>();
         pkg_version_slice.sort_by(|a, b| a.0.cmp(&b.0));
 
-        let expected_version_slice = vec![
-            ("bcachefs-tools".to_string(), vec![(
-                "local_repo/x86_64/bcachefs-tools-3:1.11.0-1.1-x86_64.pkg.tar.zst".into(),
-                alpm::Version::new("3:1.11.0-1.1"),
-            )]),
-            ("cachyos-cli-installer-new".to_string(), vec![
+        let expected_version_slice =
+            vec![
+                (
+                    "bcachefs-tools".to_string(),
+                    vec![(
+                        "local_repo/x86_64/bcachefs-tools-3:1.11.0-1.1-x86_64.pkg.tar.zst".into(),
+                        alpm::Version::new("3:1.11.0-1.1"),
+                    )],
+                ),
+                (
+                    "cachyos-cli-installer-new".to_string(),
+                    vec![
                 (
                     "local_repo/x86_64/cachyos-cli-installer-new-0.7.0-1-x86_64.pkg.tar.zst".into(),
                     alpm::Version::new("0.7.0-1"),
@@ -352,8 +369,9 @@ mod tests {
                     "local_repo/x86_64/cachyos-cli-installer-new-0.7.0-2-x86_64.pkg.tar.zst".into(),
                     alpm::Version::new("0.7.0-2"),
                 ),
-            ]),
-        ];
+            ],
+                ),
+            ];
 
         assert_eq!(pkg_version_slice, expected_version_slice);
     }
@@ -522,5 +540,34 @@ mod tests {
 
         let expected_new_pkgs_list: Vec<String> = vec![];
         assert_eq!(new_pkgs_list, expected_new_pkgs_list);
+    }
+
+    #[test]
+    fn test_replace_base_dir_for_pkgs() {
+        let base_dir = Path::new("local_repo_2/x86_64");
+
+        let pkgs_list: Vec<String> = vec![
+            "local_repo/x86_64/bcachefs-tools-3:1.11.0-1.1-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/cachyos-cli-installer-new-0.7.0-3-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/dolt-1.30.4-1.1-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/dwl-git-0.2.1.r34.2d9740c-1-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/dwm-6.2-4-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst".into(),
+            "local_repo/x86_64/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst".into(),
+            "local_repo/x86_64/st-0.8.4-2-x86_64.pkg.tar.zst".into(),
+        ];
+
+        let expected_pkgs_list: Vec<String> = vec![
+            "local_repo_2/x86_64/bcachefs-tools-3:1.11.0-1.1-x86_64.pkg.tar.zst".into(),
+            "local_repo_2/x86_64/cachyos-cli-installer-new-0.7.0-3-x86_64.pkg.tar.zst".into(),
+            "local_repo_2/x86_64/dolt-1.30.4-1.1-x86_64.pkg.tar.zst".into(),
+            "local_repo_2/x86_64/dwl-git-0.2.1.r34.2d9740c-1-x86_64.pkg.tar.zst".into(),
+            "local_repo_2/x86_64/dwm-6.2-4-x86_64.pkg.tar.zst".into(),
+            "local_repo_2/x86_64/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst".into(),
+            "local_repo_2/x86_64/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst".into(),
+            "local_repo_2/x86_64/st-0.8.4-2-x86_64.pkg.tar.zst".into(),
+        ];
+
+        assert_eq!(replace_base_dir_for_pkgs(&pkgs_list, base_dir), expected_pkgs_list);
     }
 }

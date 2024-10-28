@@ -47,6 +47,40 @@ fn init_profile_repo(repo_filepath: &str) -> Result<Alpm> {
     init_alpm(&temp_dir, &repo_list)
 }
 
+// Gets names of packages from the repo DB using provided filepaths
+pub fn get_packages_from_filepaths(
+    repo_db_path: &str,
+    filepaths: &[String],
+) -> Result<Vec<String>> {
+    // we iterate through DB with alpm crate, and check for each package
+    // if the package file exist in the repo directory and is in the
+    // list of filepaths
+    let alpm_handle =
+        init_profile_repo(repo_db_path).context("Failed to init alpm for stale packages")?;
+
+    let repo_dir = Path::new(&repo_db_path).parent().unwrap();
+
+    // iterate through every package in the database using map iter
+    let found_pkgs: Vec<String> = alpm_handle
+        .syncdbs()
+        .iter()
+        .flat_map(alpm::Db::pkgs)
+        .filter(|x| {
+            // just check if those package exist in the repo and in the list of filepaths
+            // if not insert into found pkgs which contains package names
+            let pkg_filename = x.filename().expect("Invalid package doesn't have filename");
+            let pkg_filepath = format!("{}/{pkg_filename}", repo_dir.to_str().unwrap());
+            filepaths.contains(&pkg_filepath)
+        })
+        .map(|x| x.name().to_string())
+        .collect();
+
+    // cleanup temp dir after we are done
+    cleanup_alpm_tempdir(&alpm_handle)?;
+
+    Ok(found_pkgs)
+}
+
 // Gets names of stale packages from the repo DB
 pub fn get_stale_packages(repo_db_path: &str) -> Result<Vec<String>> {
     // we iterate through DB with alpm crate, and check for each package
@@ -60,8 +94,7 @@ pub fn get_stale_packages(repo_db_path: &str) -> Result<Vec<String>> {
     let stale_pkgs: Vec<String> = alpm_handle
         .syncdbs()
         .iter()
-        .map(alpm::Db::pkgs)
-        .flatten()
+        .flat_map(alpm::Db::pkgs)
         .filter(|x| {
             // just check if those package exist, if not insert into state pkgs which contains
             // package names
@@ -91,8 +124,7 @@ pub fn get_stale_filenames(repo_db_path: &str) -> Result<Vec<String>> {
     let stale_pkgs: Vec<String> = alpm_handle
         .syncdbs()
         .iter()
-        .map(alpm::Db::pkgs)
-        .flatten()
+        .flat_map(alpm::Db::pkgs)
         .filter(|x| {
             // just check if those package exist, if not insert into state pkgs which contains
             // package names

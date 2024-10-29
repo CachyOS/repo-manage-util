@@ -4,7 +4,7 @@ use std::path::Path;
 use std::{env, fs};
 
 use alpm::Alpm;
-use anyhow::{Context, Ok, Result};
+use anyhow::{Context, Result};
 
 #[derive(Debug, PartialEq)]
 struct RepoData {

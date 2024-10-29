@@ -215,9 +215,10 @@ fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     let current_dir = std::env::current_dir().context("Failed to get current working dir")?;
 
     // here we get only packages without signature
-    let pkg_to_move_list = glob::glob(&format!("{}/*.pkg.tar.zst", current_dir.to_str().unwrap()))?
-        .map(|x| x.unwrap().to_str().unwrap().to_owned())
-        .collect::<Vec<_>>();
+    let mut pkg_to_move_list =
+        glob::glob(&format!("{}/*.pkg.tar.zst", current_dir.to_str().unwrap()))?
+            .map(|x| x.unwrap().to_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
 
     // NOTE: probably we would rather want here to see filenames instead of full paths
     log::info!("Found packages to move in current dir: {pkg_to_move_list:?}");
@@ -237,8 +238,18 @@ fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
         return Ok(());
     }
 
+    // lets invalidate packages if they are already in the target repo (and are not newer versions)
+    let already_in_repo = pkg_utils::exclude_existing_pkgs(&profile.repo, &pkg_to_move_list);
+
+    if !already_in_repo.is_empty() {
+        log::warn!(
+            "Found packages already in the repo: {already_in_repo:?}, excluding them from move"
+        );
+        pkg_to_move_list.retain(|pkg| !already_in_repo.contains(pkg));
+    }
+
     if let Err(pkg_move_err) = handle_pkgfiles_move(&pkg_to_move_list, repo_dir.to_str().unwrap()) {
-        log::error!("Error occured while moving package files: {pkg_move_err}");
+        log::error!("Error occurred while moving package files: {pkg_move_err}");
         return Ok(());
     }
 

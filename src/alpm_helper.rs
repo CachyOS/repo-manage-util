@@ -4,7 +4,7 @@ use std::path::Path;
 use std::{env, fs};
 
 use alpm::Alpm;
-use anyhow::{Context, Result};
+use anyhow::{Context, Ok, Result};
 
 #[derive(Debug, PartialEq)]
 struct RepoData {
@@ -45,6 +45,32 @@ fn init_profile_repo(repo_filepath: &str) -> Result<Alpm> {
 
     let repo_list = vec![RepoData { repo_name: repo_db_prefix, repo_server: repo_url }];
     init_alpm(&temp_dir, &repo_list)
+}
+
+pub fn exclude_existing_pkgs(repo_db_path: &str, pkgs: &mut pkg_utils::PackageMap) -> Result<Vec<String>> {
+    // we iterate through DB with alpm crate, and check for each package
+    // if the package exist in the repo and is newer or equal to the one
+    // in the list, then we remove it from the list of packages
+    let alpm_handle =
+        init_profile_repo(repo_db_path).context("Failed to init alpm for src profile repo")?;
+
+    // iterate through every package in the database using map iter
+    let mut removed_pkgs: Vec<String> = vec![];
+    alpm_handle.syncdbs().iter().flat_map(alpm::Db::pkgs).for_each(|x| {
+        if pkgs.contains_key(x.name()) {
+            for pkg in pkgs.get(x.name()).unwrap().to_owned() {
+                if pkg.1.as_ver() <= x.version() {
+                    pkgs.remove(x.name());
+                    removed_pkgs.push(pkg.0);
+                }
+            }
+        }
+    });
+
+    // cleanup temp dir after we are done
+    cleanup_alpm_tempdir(&alpm_handle)?;
+
+    Ok(removed_pkgs)
 }
 
 // Gets names of packages from the repo DB using provided filepaths

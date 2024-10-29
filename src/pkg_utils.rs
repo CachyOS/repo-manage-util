@@ -1,9 +1,9 @@
-use crate::utils;
+use crate::{alpm_helper, utils};
 
 use std::collections::HashMap;
 use std::path::Path;
 
-type PackageMap = HashMap<String, Vec<(String, alpm::Version)>>;
+pub type PackageMap = HashMap<String, Vec<(String, alpm::Version)>>;
 
 pub fn get_debug_packages(pkg_list: &[String]) -> Vec<String> {
     // Identify debug packages from pkg list
@@ -171,6 +171,12 @@ pub fn replace_base_dir_for_pkgs(pkgs_list: &[String], base_dir: &Path) -> Vec<S
             base_dir.join(Path::new(file).file_name().unwrap()).to_str().unwrap().to_owned()
         })
         .collect::<Vec<_>>()
+}
+
+pub fn exclude_existing_pkgs(repo_db_path: &str, pkg_list: &[String]) -> Vec<String> {
+    let mut pkg_map = get_pkgs_map(pkg_list);
+    alpm_helper::exclude_existing_pkgs(repo_db_path, &mut pkg_map)
+        .expect("Failed to exclude existing pkgs")
 }
 
 #[cfg(test)]

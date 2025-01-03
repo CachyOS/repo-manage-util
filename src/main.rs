@@ -227,7 +227,8 @@ fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     let current_dir = std::env::current_dir().context("Failed to get current working dir")?;
 
     // here we get only packages without signature
-    let mut pkg_to_move_list = pkg_utils::find_packages_in_dir(current_dir.as_path())?;
+    let mut pkg_to_move_list = pkg_utils::find_packages_in_dir(current_dir.as_path())
+        .context("Failed to get package files in current working dir")?;
 
     if !pkg_to_move_list.is_empty() {
         // NOTE: probably we would rather want here to see filenames instead of full paths

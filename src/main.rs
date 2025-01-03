@@ -132,8 +132,6 @@ fn do_repo_update(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
 
     // 1. handle new packages
 
-    // TODO(vnepogodin): handle ref repo updates here
-
     // handle new packages which are not present in the DB
     let mut brand_new_pkgs = alpm_helper::get_brand_new_packages(&profile.repo)
         .context("Failed to get brand new pkgs")?;
@@ -168,7 +166,12 @@ fn do_repo_update(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
         repo_utils::handle_repo_remove(profile, &stale_pkgs)?;
     }
 
-    log::info!("Repo update is done!");
+    // report status only when had some work
+    if !new_pkgs.is_empty() || !stale_pkgs.is_empty() {
+        log::info!("Repo update is done!");
+    } else {
+        log::info!("nothing to do");
+    }
 
     Ok(())
 }
@@ -209,7 +212,12 @@ fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // TODO: handle new packages(which dont exist in repo, but exist in ref repo), handle stale
     // packages(which no longer exist in ref repo)
 
-    log::info!("Repo ref sync is done!");
+    // report status only when had some work
+    if !packages_to_copy.is_empty() {
+        log::info!("Repo ref sync is done!");
+    } else {
+        log::info!("nothing to do");
+    }
 
     Ok(())
 }
@@ -221,8 +229,10 @@ fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // here we get only packages without signature
     let mut pkg_to_move_list = pkg_utils::find_packages_in_dir(current_dir.as_path())?;
 
-    // NOTE: probably we would rather want here to see filenames instead of full paths
-    log::info!("Found packages to move in current dir: {pkg_to_move_list:?}");
+    if !pkg_to_move_list.is_empty() {
+        // NOTE: probably we would rather want here to see filenames instead of full paths
+        log::info!("Found packages to move in current dir: {pkg_to_move_list:?}");
+    }
 
     // lets invalidate packages if they are without signatures
     if !pkg_utils::validate_packages(profile.require_signature, &pkg_to_move_list) {
@@ -250,7 +260,12 @@ fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // we need to touch only packages which we move into
     do_repo_update(profile, repo_dir)?;
 
-    log::info!("Repo MovePkgsToRepo is done!");
+    // report status only when had some work
+    if !pkg_to_move_list.is_empty() {
+        log::info!("Repo MovePkgsToRepo is done!");
+    } else {
+        log::info!("nothing to do");
+    }
 
     Ok(())
 }

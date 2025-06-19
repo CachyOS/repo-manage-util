@@ -508,7 +508,7 @@ fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> 
 
 fn handle_pkgfile_copy(pkg_to_copy: &str, dest_dir: &str) -> Result<()> {
     let pkg_filename = Path::new(&pkg_to_copy).file_name().unwrap().to_str().unwrap();
-    let dest_path = format!("{}/{pkg_filename}", dest_dir);
+    let dest_path = format!("{dest_dir}/{pkg_filename}");
 
     // NOTE: maybe we should change log level depending on the func argument,
     // we may not want to have it all time as info, for example at handling outdated packages
@@ -532,7 +532,7 @@ fn handle_pkgfile_copy(pkg_to_copy: &str, dest_dir: &str) -> Result<()> {
 
 fn handle_pkgfile_move(pkg_to_move: &str, dest_dir: &str) -> Result<()> {
     let pkg_filename = Path::new(&pkg_to_move).file_name().unwrap().to_str().unwrap();
-    let dest_path = format!("{}/{pkg_filename}", dest_dir);
+    let dest_path = format!("{dest_dir}/{pkg_filename}");
 
     // NOTE: maybe we should change log level depending on the func argument,
     // we may not want to have it all time as info, for example at handling outdated packages

@@ -29,9 +29,9 @@ pub fn create_temporary_directory(max_tries: Option<u32>) -> Option<String> {
     let max_tries = max_tries.unwrap_or(1000);
 
     let mut i: u32 = 0;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     loop {
-        let res_path = format!("{}/{}", tmp_dir.to_string_lossy(), rng.gen::<u64>());
+        let res_path = format!("{}/{}", tmp_dir.to_string_lossy(), rng.random::<u64>());
         if fs::create_dir_all(res_path.as_str()).is_ok() {
             return Some(res_path);
         }

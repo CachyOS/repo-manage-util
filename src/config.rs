@@ -40,7 +40,7 @@ pub fn get_config_path() -> Result<String> {
     // Search for config file in home and system directories
     let home_env = env::var("HOME").expect("Failed to get HOME environment");
 
-    let home_config_path = format!("{home_env}/{}", ".config/repo-manage/config.toml");
+    let home_config_path = format!("{home_env}/.config/repo-manage/config.toml");
 
     let check_paths = [home_config_path, "/etc/repo-manage/config.toml".to_owned()];
     for check_path in check_paths {

@@ -259,7 +259,7 @@ fn cleanup_alpm_tempdir(alpm_handle: &Alpm) -> Result<()> {
 
     let alpm_root_dir = alpm_handle.root();
     if !alpm_root_dir.starts_with(tmp_dir.to_str().unwrap()) {
-        log::error!("alpm handle root at '{}' wasn't removed", alpm_root_dir);
+        log::error!("alpm handle root at '{alpm_root_dir}' wasn't removed");
         return Ok(());
     }
 

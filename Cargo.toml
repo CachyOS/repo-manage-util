@@ -1,7 +1,10 @@
 [package]
 name = "repo-manage-util"
-version = "0.1.0"
+version = "0.1.1"
+authors = ["Vladislav Nepogodin <vnepogodin@cachyos.org>"]
 edition = "2021"
+description = "A command-line utility for managing Arch Linux repositories"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 alpm = { version = "4", features = ["checkver"], default-features = false }

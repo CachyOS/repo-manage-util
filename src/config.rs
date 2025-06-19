@@ -41,17 +41,21 @@ pub fn get_config_path() -> Result<String> {
     let home_env = env::var("HOME").expect("Failed to get HOME environment");
 
     let home_config_path = format!("{home_env}/.config/repo-manage/config.toml");
+    let root_config_path = "/etc/repo-manage/config.toml";
 
-    let check_paths = [home_config_path, "/etc/repo-manage/config.toml".to_owned()];
-    for check_path in check_paths {
-        if !Path::new(&check_path).exists() {
+    for check_path in [&home_config_path, root_config_path] {
+        if !Path::new(check_path).exists() {
             continue;
         }
         // we found config path
-        return Ok(check_path);
+        return Ok(check_path.to_owned());
     }
 
-    anyhow::bail!("Failed to find config!");
+    anyhow::bail!(
+        "Failed to find config!\nCopy & Modify example profile from \
+         '/usr/share/repo-manage/example-config.toml' into '{home_config_path}' or \
+         '{root_config_path}'"
+    );
 }
 
 fn parse_config_content(file_content: &str) -> Result<Config> {

@@ -1,4 +1,5 @@
-use crate::{pkg_utils, utils};
+use crate::postgresql_helper::PostgresqlHelper;
+use crate::{pg_types, pkg_utils, utils};
 
 use std::path::Path;
 use std::{env, fs};
@@ -252,6 +253,103 @@ pub fn get_newer_packages_from_reference(
     cleanup_alpm_tempdir(&reference_alpm_handle)?;
 
     Ok(packages_to_copy)
+}
+
+// Populates repository to the database
+pub async fn populate_repo_to_db(
+    repo_db_path: &str,
+    postgres_helper: &PostgresqlHelper,
+) -> Result<()> {
+    let alpm_handle = init_profile_repo(repo_db_path).context("Failed to init alpm for the db")?;
+
+    // Ensure the repository is registered
+    let repo_name = pkg_utils::get_repo_db_prefix(repo_db_path);
+    postgres_helper.insert_or_update_repository(&repo_name, None).await?;
+
+    // Get all packages in the repository
+    for db in alpm_handle.syncdbs() {
+        for pkg in db.pkgs() {
+            // Extract package information
+            let pkg_name = pkg.name().to_string();
+            let pkg_version = pkg.version().as_str().to_string();
+            let pkg_filename = pkg.filename().expect("Invalid package doesn't have filename");
+
+            // Prepare metadata data
+            let metadata: pg_types::PackageMetadata = pkg.into();
+
+            // Prepare dependencies data
+            let dependencies: pg_types::PackageDependencies = pkg.into();
+
+            // Insert or update the package
+            postgres_helper
+                .insert_or_update_package(
+                    &repo_name,
+                    &pkg_name,
+                    &pkg_version,
+                    &pkg_filename,
+                    metadata,
+                    dependencies,
+                )
+                .await?;
+        }
+    }
+
+    log::debug!("Populated packages from repository {repo_name} to the database");
+
+    // Cleanup temp dirs after we are done
+    cleanup_alpm_tempdir(&alpm_handle)?;
+
+    Ok(())
+}
+
+// Populates repository to the database
+pub async fn add_pkgs_to_db(
+    repo_db_path: &str,
+    postgres_helper: &PostgresqlHelper,
+    new_pkgs: &[String],
+) -> Result<()> {
+    let alpm_handle = init_profile_repo(repo_db_path).context("Failed to init alpm for the db")?;
+
+    // Ensure the repository is registered
+    let repo_name = pkg_utils::get_repo_db_prefix(repo_db_path);
+    postgres_helper.insert_or_update_repository(&repo_name, None).await?;
+
+    // Iterate over all new packages
+    for new_pkgname in new_pkgs {
+        if let Some(pkg) =
+            alpm_handle.syncdbs().iter().find_map(|db| db.pkg(new_pkgname.as_str()).ok())
+        {
+            // Extract package information
+            let pkg_name = pkg.name().to_string();
+            let pkg_version = pkg.version().as_str().to_string();
+            let pkg_filename = pkg.filename().expect("Invalid package doesn't have filename");
+
+            // Prepare metadata data
+            let metadata: pg_types::PackageMetadata = pkg.into();
+
+            // Prepare dependencies data
+            let dependencies: pg_types::PackageDependencies = pkg.into();
+
+            // Insert or update the package
+            postgres_helper
+                .insert_or_update_package(
+                    &repo_name,
+                    &pkg_name,
+                    &pkg_version,
+                    &pkg_filename,
+                    metadata,
+                    dependencies,
+                )
+                .await?;
+        }
+    }
+
+    log::debug!("Added {repo_name} packages to the database");
+
+    // Cleanup temp dirs after we are done
+    cleanup_alpm_tempdir(&alpm_handle)?;
+
+    Ok(())
 }
 
 fn cleanup_alpm_tempdir(alpm_handle: &Alpm) -> Result<()> {

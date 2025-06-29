@@ -1,0 +1,123 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT helper_schema.insert_or_update_package($1, $2, $3, $4, $5, $6)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "insert_or_update_package",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "helper_schema.package_metadata",
+            "kind": {
+              "Composite": [
+                [
+                  "pkg_base",
+                  "Text"
+                ],
+                [
+                  "pkg_desc",
+                  "Text"
+                ],
+                [
+                  "pkg_groups",
+                  "TextArray"
+                ],
+                [
+                  "pkg_url",
+                  "Text"
+                ],
+                [
+                  "pkg_license",
+                  "TextArray"
+                ],
+                [
+                  "pkg_arch",
+                  "Text"
+                ],
+                [
+                  "pkg_builddate",
+                  "Timestamptz"
+                ],
+                [
+                  "pkg_packager",
+                  "Text"
+                ],
+                [
+                  "pkg_csize",
+                  "Int8"
+                ],
+                [
+                  "pkg_isize",
+                  "Int8"
+                ],
+                [
+                  "pkg_sha256sum",
+                  "Text"
+                ],
+                [
+                  "pkg_pgpsig",
+                  "Text"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "helper_schema.package_dependencies",
+            "kind": {
+              "Composite": [
+                [
+                  "pkg_replaces",
+                  "TextArray"
+                ],
+                [
+                  "pkg_depends",
+                  "TextArray"
+                ],
+                [
+                  "pkg_optdepends",
+                  "TextArray"
+                ],
+                [
+                  "pkg_makedepends",
+                  "TextArray"
+                ],
+                [
+                  "pkg_checkdepends",
+                  "TextArray"
+                ],
+                [
+                  "pkg_conflicts",
+                  "TextArray"
+                ],
+                [
+                  "pkg_provides",
+                  "TextArray"
+                ],
+                [
+                  "pkg_files",
+                  "TextArray"
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6f55ff298289910299f086cb934b23a9768e25ded8a83dd445a789cd24d6f3a9"
+}

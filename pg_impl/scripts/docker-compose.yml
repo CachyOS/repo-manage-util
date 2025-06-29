@@ -1,0 +1,12 @@
+services:
+    test-postgres:
+        container_name: test-postgres
+        image: postgres:17.0-alpine
+        environment:
+          - POSTGRES_DB=testdb
+          - POSTGRES_USER=postgres
+          - POSTGRES_PASSWORD=password
+        ports:
+          - 15432:5432
+        volumes:
+          - ../migrations/001_init_schema.sql:/docker-entrypoint-initdb.d/init.sql

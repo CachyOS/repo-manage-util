@@ -1,0 +1,172 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM helper_schema.get_latest_packages($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "repo_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "pkg_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "pkg_version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "pkg_filename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "pkg_base",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "pkg_desc",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "pkg_groups",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "pkg_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "pkg_license",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 10,
+        "name": "pkg_arch",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "pkg_builddate",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "pkg_packager",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "pkg_csize",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "pkg_isize",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "pkg_sha256sum",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "pkg_pgpsig",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "pkg_replaces",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 18,
+        "name": "pkg_depends",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 19,
+        "name": "pkg_optdepends",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 20,
+        "name": "pkg_makedepends",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 21,
+        "name": "pkg_checkdepends",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 22,
+        "name": "pkg_conflicts",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 23,
+        "name": "pkg_provides",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 24,
+        "name": "pkg_files",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 25,
+        "name": "updated",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "db41e08c194442c9fad6a79c96d480d68195d0d5980959fe321cc3b544564198"
+}

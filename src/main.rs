@@ -2,7 +2,9 @@ mod alpm_helper;
 mod args;
 mod config;
 mod logger;
+mod pg_types;
 mod pkg_utils;
+mod postgresql_helper;
 mod repo_utils;
 mod utils;
 
@@ -13,6 +15,7 @@ use anyhow::{Context, Result};
 use args::*;
 use clap::Parser;
 use config::Profile;
+use postgresql_helper::PostgresqlHelper;
 
 fn get_profile_from_config<'a>(
     profile_name: &'a str,
@@ -25,7 +28,8 @@ fn get_repo_dir_from_profile(profile: &config::Profile) -> &Path {
     Path::new(&profile.repo).parent().unwrap()
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Cli::parse();
 
     // initialize the logger
@@ -34,6 +38,14 @@ fn main() -> Result<()> {
     // load config
     let config_path = config::get_config_path()?;
     let config = config::parse_config_file(&config_path)?;
+
+    // Initialize PostgreSQL helper if URL is provided
+    let pg_helper = if let Some(postgresql_url) = &config.postgresql_url {
+        let helper = PostgresqlHelper::new(postgresql_url).await?;
+        Some(helper)
+    } else {
+        None
+    };
 
     match &args.command {
         Commands::Reset(args) => {
@@ -45,7 +57,7 @@ fn main() -> Result<()> {
 
             log::debug!("repo db path := {repo_db_pattern}");
 
-            do_repo_reset(profile, &repo_db_pattern, repo_dir)?;
+            do_repo_reset(profile, &repo_db_pattern, repo_dir, pg_helper, args.only_pg).await?;
             // TODO(vnepogodin): handle debug packages
             // move them to debug folder if is set
         },
@@ -53,7 +65,7 @@ fn main() -> Result<()> {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
-            do_repo_update(profile, repo_dir)?;
+            do_repo_update(profile, repo_dir, pg_helper).await?;
             // TODO(vnepogodin): handle debug packages
             // move them to debug folder if is set
         },
@@ -61,7 +73,7 @@ fn main() -> Result<()> {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
-            do_repo_sync(profile, repo_dir)?;
+            do_repo_sync(profile, repo_dir).await?;
             // TODO(vnepogodin): handle debug packages
             // move them to debug folder if is set
         },
@@ -69,13 +81,15 @@ fn main() -> Result<()> {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
-            do_repo_move_pkgs(profile, repo_dir)?;
+            do_repo_move_pkgs(profile, repo_dir, pg_helper).await?;
+            // TODO(vnepogodin): handle debug packages
+            // move them to debug folder if is set
         },
         Commands::IsPkgsUpToDate(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
-            do_repo_checkup(profile, repo_dir)?;
+            do_repo_checkup(profile, repo_dir).await?;
         },
         Commands::CleanupBackupDir(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
@@ -89,43 +103,70 @@ fn main() -> Result<()> {
             let to_profile = get_profile_from_config(&args.to, &config)?;
             let to_repo_dir = get_repo_dir_from_profile(to_profile);
 
-            move_packages_from_repo_to_repo(from_profile, from_repo_dir, to_profile, to_repo_dir)?;
+            move_packages_from_repo_to_repo(
+                from_profile,
+                from_repo_dir,
+                to_profile,
+                to_repo_dir,
+                pg_helper,
+            )
+            .await?;
         },
     }
 
     Ok(())
 }
 
-fn do_repo_reset(profile: &config::Profile, repo_db_pattern: &str, repo_dir: &Path) -> Result<()> {
-    // Remove db and files
-    for pattern in [repo_db_pattern] {
-        log::debug!("removing db file '{pattern}'..");
-        for entry in glob::glob(pattern)? {
-            fs::remove_file(entry?)?
+async fn do_repo_reset(
+    profile: &config::Profile,
+    repo_db_pattern: &str,
+    repo_dir: &Path,
+    pg_helper: Option<PostgresqlHelper>,
+    only_pg: bool,
+) -> Result<()> {
+    if !only_pg {
+        // Remove db and files
+        for pattern in [repo_db_pattern] {
+            log::debug!("removing db file '{pattern}'..");
+            for entry in glob::glob(pattern)? {
+                fs::remove_file(entry?)?
+            }
         }
+
+        let mut pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
+        let outdated_pkgs = pkg_utils::get_outdated_pkgs(&pkgs_list);
+        pkgs_list.retain(|pkg| !outdated_pkgs.contains(pkg));
+
+        // don't insert packages without signature
+        if profile.require_signature {
+            pkg_utils::remove_pkgs_without_sig(&mut pkgs_list);
+        }
+
+        // run repo-add
+        repo_utils::handle_repo_add(profile, &pkgs_list)?;
+
+        // handle removal/backup here
+        handle_outdated_pkgs(profile, &outdated_pkgs)?;
     }
 
-    let mut pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
-    let outdated_pkgs = pkg_utils::get_outdated_pkgs(&pkgs_list);
-    pkgs_list.retain(|pkg| !outdated_pkgs.contains(pkg));
-
-    // don't insert packages without signature
-    if profile.require_signature {
-        pkg_utils::remove_pkgs_without_sig(&mut pkgs_list);
+    // Reset db if configured
+    if let Some(ref pg) = pg_helper {
+        // purge repo packages first then populate
+        let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
+        pg.remove_existing_repository(&repo_name).await?;
+        alpm_helper::populate_repo_to_db(&profile.repo, pg).await?;
     }
-
-    // run repo-add
-    repo_utils::handle_repo_add(profile, &pkgs_list)?;
-
-    // handle removal/backup here
-    handle_outdated_pkgs(profile, &outdated_pkgs)?;
 
     log::info!("Repo reset is done!");
 
     Ok(())
 }
 
-fn do_repo_update(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
+async fn do_repo_update(
+    profile: &config::Profile,
+    repo_dir: &Path,
+    pg_helper: Option<PostgresqlHelper>,
+) -> Result<()> {
     let pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
     let outdated_pkgs = pkg_utils::get_outdated_pkgs(&pkgs_list);
     let mut new_pkgs = pkg_utils::get_new_pkgs(&pkgs_list);
@@ -166,6 +207,13 @@ fn do_repo_update(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
         repo_utils::handle_repo_remove(profile, &stale_pkgs)?;
     }
 
+    // Update db if configured
+    if let Some(ref pg) = pg_helper {
+        let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
+        pg.remove_stale_packages(&repo_name, &stale_pkgs).await?;
+        alpm_helper::add_pkgs_to_db(&profile.repo, pg, &new_pkgs).await?;
+    }
+
     // report status only when had some work
     if !new_pkgs.is_empty() || !stale_pkgs.is_empty() {
         log::info!("Repo update is done!");
@@ -176,7 +224,7 @@ fn do_repo_update(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
+async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     if profile.reference_repo.is_none() {
         log::error!("Reference repository is not configured. Cannot proceed further");
         return Ok(());
@@ -222,7 +270,11 @@ fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
+async fn do_repo_move_pkgs(
+    profile: &config::Profile,
+    repo_dir: &Path,
+    pg_helper: Option<PostgresqlHelper>,
+) -> Result<()> {
     // 1. moving packages from current dir
     let current_dir = std::env::current_dir().context("Failed to get current working dir")?;
 
@@ -259,7 +311,7 @@ fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // 2. doing regular repo update
     // TODO(vnepogodin): don't parse all packages in the repo,
     // we need to touch only packages which we move into
-    do_repo_update(profile, repo_dir)?;
+    do_repo_update(profile, repo_dir, pg_helper).await?;
 
     // report status only when had some work
     if !pkg_to_move_list.is_empty() {
@@ -271,7 +323,7 @@ fn do_repo_move_pkgs(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
+async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     let pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
 
     let outdated_pkgs = pkg_utils::get_outdated_pkgs(&pkgs_list);
@@ -429,11 +481,12 @@ fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
 // 1. moves package files in the src repo to the dest repo
 // 2. removes packages from the src repo DB
 // 3. adds packages to the dest repo DB
-fn move_packages_from_repo_to_repo(
+async fn move_packages_from_repo_to_repo(
     src_profile: &Profile,
     src_repo_dir: &Path,
     dest_profile: &Profile,
     dest_repo_dir: &Path,
+    pg_helper: Option<PostgresqlHelper>,
 ) -> Result<()> {
     // here we get only packages without signature
     let pkg_to_move_list = pkg_utils::find_packages_in_dir(src_repo_dir)?;
@@ -461,6 +514,13 @@ fn move_packages_from_repo_to_repo(
 
     repo_utils::handle_repo_remove(src_profile, &removal_pkgs)?;
     repo_utils::handle_repo_add(dest_profile, &added_pkgs_files)?;
+
+    // Update db if configured
+    if let Some(ref pg) = pg_helper {
+        let srcrepo_name = pkg_utils::get_repo_db_prefix(&src_profile.repo);
+        pg.remove_stale_packages(&srcrepo_name, &removal_pkgs).await?;
+        alpm_helper::add_pkgs_to_db(&dest_profile.repo, pg, &added_pkgs_files).await?;
+    }
 
     log::info!("Repo MovePkgsFromRepo2Repo is done!");
 

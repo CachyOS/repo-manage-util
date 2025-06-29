@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT helper_schema.insert_or_update_repository($1, $2)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "insert_or_update_repository",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "helper_schema.repository_info",
+            "kind": {
+              "Composite": [
+                [
+                  "repo_desc",
+                  "Text"
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a30362d82556cece66d81ee6c8c727dba7d030c3c0427afe66cd98ffa3e91b5b"
+}

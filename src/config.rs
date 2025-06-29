@@ -8,6 +8,7 @@ use serde::Deserialize;
 #[derive(Debug, PartialEq, Default, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    pub postgresql_url: Option<String>,
     pub profiles: HashMap<String, Profile>,
 }
 
@@ -97,6 +98,7 @@ mod tests {
         assert!(parsed_config.is_ok());
 
         let expected_config = Config {
+            postgresql_url: Some("postgresql://user:1234@localhost:5432/pg_repomanage".to_string()),
             profiles: HashMap::from([
                 ("repof".to_string(), Profile {
                     repo: "/home/testuser/repos/x86_64/os/repof/repof.db.tar.zst".to_string(),

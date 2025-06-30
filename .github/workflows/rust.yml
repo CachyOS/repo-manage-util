@@ -14,7 +14,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  DATABASE_URL: "postgresql://postgres:password@localhost:15432/testdb"
+  DATABASE_URL: "postgresql://postgres:password@postgres:5432/testdb"
 
 jobs:
   build:
@@ -25,7 +25,7 @@ jobs:
 
     # Service containers to run with current job
     services:
-      test-postgres:
+      postgres:
         image: postgres:17.0-alpine
         env:
           POSTGRES_DB: testdb
@@ -37,12 +37,10 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 15432:5432
 
     steps:
       - name: Install Packages
-        run: pacman -Syu clang gcc pkg-config --noconfirm --needed
+        run: pacman -Syu --noconfirm postgresql clang gcc pkg-config
 
       - uses: actions/checkout@v4
 
@@ -53,6 +51,9 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt, clippy
+
+      - name: Run pg_impl migration
+        run: psql ${{env.DATABASE_URL}} -a -f pg_impl/migrations/001_init_schema.sql
 
       - name: Run cargo build
         uses: actions-rs/cargo@v1
@@ -67,7 +68,8 @@ jobs:
       - name: Run cargo test on pg_impl
         uses: actions-rs/cargo@v1
         with:
-          command: test --manifest-path pg_impl/Cargo.toml
+          command: test
+          args: --manifest-path pg_impl/Cargo.toml
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1

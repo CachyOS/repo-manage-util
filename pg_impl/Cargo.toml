@@ -1,0 +1,16 @@
+[package]
+name = "pg_impl"
+version = "0.1.0"
+authors = ["Vladislav Nepogodin <vnepogodin@cachyos.org>"]
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+thiserror = { version = "2.0", default-features = false }
+chrono = { version = "0.4", default-features = false }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "runtime-tokio", "migrate", "chrono", "uuid", "macros"], default-features = false }
+tokio = { version = "1.45", features = ["macros", "rt-multi-thread"], default-features = false }
+uuid = { version = "1", features = ["v4"], default-features = false }
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3

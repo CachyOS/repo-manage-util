@@ -2,6 +2,9 @@
 
 # the config is very similar to repoctl config
 
+# postgresql integration
+postgresql_url = "postgresql://user:1234@localhost:5432/pg_repomanage"
+
 [profiles.repof]
   # Full path to the repo
   repo = "/home/testuser/repos/x86_64/os/repof/repof.db.tar.zst"

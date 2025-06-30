@@ -14,14 +14,14 @@ pub const fn const_min(v1: usize, v2: usize) -> usize {
 #[inline]
 pub const fn string_substr(src_str: &str, pos: usize, n: usize) -> Result<&str, str::Utf8Error> {
     let rlen = const_min(n, src_str.len() - pos);
-    let s = unsafe {
+    
+    unsafe {
         // First, we build a &[u8]...
         let slice = slice::from_raw_parts(src_str.as_ptr().add(pos), rlen);
 
         // ... and then convert that slice into a string slice
         str::from_utf8(slice)
-    };
-    s
+    }
 }
 
 pub fn create_temporary_directory(max_tries: Option<u32>) -> Option<String> {

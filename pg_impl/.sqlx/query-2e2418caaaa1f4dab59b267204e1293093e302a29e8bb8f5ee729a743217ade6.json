@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM helper_schema.get_repo_stats($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "repo_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "total_packages",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "unique_packages",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "oldest_package_update",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "newest_package_update",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "repo_desc",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2e2418caaaa1f4dab59b267204e1293093e302a29e8bb8f5ee729a743217ade6"
+}

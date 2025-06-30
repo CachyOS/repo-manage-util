@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT helper_schema.remove_repository($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "remove_repository",
+        "type_info": "Void"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "de4b1f6f6d52e9cb5ba164f92844ace6ef1c4920d0088092be589999c9673957"
+}

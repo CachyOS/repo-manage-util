@@ -1,0 +1,12 @@
+services:
+    repo-postgres:
+        container_name: repo-postgres
+        image: postgres:17.0-alpine
+        environment:
+          - POSTGRES_DB=pg_repomanage
+          - POSTGRES_USER=user
+          - POSTGRES_PASSWORD=1234
+        ports:
+          - 5432:5432
+        volumes:
+          - ./.repo_pgdata:/var/lib/postgresql/data

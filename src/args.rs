@@ -15,6 +15,10 @@ pub(crate) struct Cli {
     #[arg(global = true, short, long)]
     to: Option<String>,
 
+    /// Flag to update only postgres DB
+    #[arg(global = true, short, long)]
+    only_pg: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -24,6 +28,10 @@ pub(crate) struct SingleProfileCli {
     /// Profile to use from the configuration file
     #[clap(from_global)]
     pub profile: String,
+
+    /// Flag to update only postgres DB
+    #[clap(from_global)]
+    pub only_pg: bool,
 }
 
 #[derive(Parser, PartialEq, Debug)]
@@ -69,14 +77,22 @@ mod tests {
             profile: Some("abcd".to_owned()),
             to: None,
             from: None,
-            command: Commands::Reset(SingleProfileCli { profile: "abcd".to_owned() })
+            only_pg: false,
+            command: Commands::Reset(SingleProfileCli {
+                profile: "abcd".to_owned(),
+                only_pg: false
+            })
         });
 
         assert_eq!(Cli::parse_from(["test", "--profile", "abcd", "reset"]), Cli {
             profile: Some("abcd".to_owned()),
             to: None,
             from: None,
-            command: Commands::Reset(SingleProfileCli { profile: "abcd".to_owned() })
+            only_pg: false,
+            command: Commands::Reset(SingleProfileCli {
+                profile: "abcd".to_owned(),
+                only_pg: false
+            })
         });
     }
 
@@ -86,6 +102,7 @@ mod tests {
             profile: None,
             to: Some("abcd".to_owned()),
             from: Some("dcba".to_owned()),
+            only_pg: false,
             command: Commands::MovePkgs(FromToProfileCli {
                 to: "abcd".to_owned(),
                 from: "dcba".to_owned()
@@ -96,6 +113,7 @@ mod tests {
             profile: None,
             to: Some("abcd".to_owned()),
             from: Some("dcba".to_owned()),
+            only_pg: false,
             command: Commands::MovePkgs(FromToProfileCli {
                 to: "abcd".to_owned(),
                 from: "dcba".to_owned()

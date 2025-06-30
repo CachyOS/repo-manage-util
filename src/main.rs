@@ -462,13 +462,12 @@ fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
 
             // remove package signature
             let sig_filepath = format!("{filepath}.sig");
-            if Path::new(&sig_filepath).exists() {
-                if let Err(file_err) = fs::remove_file(&sig_filepath) {
+            if Path::new(&sig_filepath).exists()
+                && let Err(file_err) = fs::remove_file(&sig_filepath) {
                     log::error!(
                         "Failed to remove the backup file sig '{sig_filepath}': {file_err}"
                     );
                 }
-            }
         }
     }
 
@@ -546,13 +545,12 @@ fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> 
 
             // remove package signature
             let sig_filepath = format!("{outdated_pkg}.sig");
-            if Path::new(&sig_filepath).exists() {
-                if let Err(file_err) = fs::remove_file(&sig_filepath) {
+            if Path::new(&sig_filepath).exists()
+                && let Err(file_err) = fs::remove_file(&sig_filepath) {
                     log::error!(
                         "Failed to remove outdated package sig '{sig_filepath}': {file_err}"
                     );
                 }
-            }
         }
     }
 
@@ -581,11 +579,10 @@ fn handle_pkgfile_copy(pkg_to_copy: &str, dest_dir: &str) -> Result<()> {
     // copying package signature
     let pkg_sig_to_copy = format!("{pkg_to_copy}.sig");
     let sig_dest_path = format!("{dest_path}.sig");
-    if Path::new(&pkg_sig_to_copy).exists() {
-        if let Err(copy_err) = fs::copy(pkg_sig_to_copy, &sig_dest_path) {
+    if Path::new(&pkg_sig_to_copy).exists()
+        && let Err(copy_err) = fs::copy(pkg_sig_to_copy, &sig_dest_path) {
             log::error!("Failed to copy pkg signature: {copy_err}");
         }
-    }
 
     Ok(())
 }
@@ -607,11 +604,10 @@ fn handle_pkgfile_move(pkg_to_move: &str, dest_dir: &str) -> Result<()> {
     // moving package signature
     let pkg_sig_to_move = format!("{pkg_to_move}.sig");
     let sig_dest_path = format!("{dest_path}.sig");
-    if Path::new(&pkg_sig_to_move).exists() {
-        if let Err(move_err) = fs::rename(pkg_sig_to_move, &sig_dest_path) {
+    if Path::new(&pkg_sig_to_move).exists()
+        && let Err(move_err) = fs::rename(pkg_sig_to_move, &sig_dest_path) {
             log::error!("Failed to move pkg signature: {move_err}");
         }
-    }
 
     Ok(())
 }

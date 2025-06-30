@@ -111,7 +111,7 @@ impl From<&alpm::Package> for PackageDependencies {
             pkg_conflicts: Some(pkg.conflicts().into_iter().map(|s| s.to_string()).collect()),
             pkg_provides: Some(pkg.provides().into_iter().map(|s| s.to_string()).collect()),
             pkg_files: Some(
-                pkg.files().files().into_iter().map(|s| s.name().to_string()).collect(),
+                pkg.files().files().iter().map(|s| s.name().to_string()).collect(),
             ),
         }
     }

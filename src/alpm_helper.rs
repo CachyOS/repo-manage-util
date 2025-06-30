@@ -286,7 +286,7 @@ pub async fn populate_repo_to_db(
                     &repo_name,
                     &pkg_name,
                     &pkg_version,
-                    &pkg_filename,
+                    pkg_filename,
                     metadata,
                     dependencies,
                 )
@@ -336,7 +336,7 @@ pub async fn add_pkgs_to_db(
                     &repo_name,
                     &pkg_name,
                     &pkg_version,
-                    &pkg_filename,
+                    pkg_filename,
                     metadata,
                     dependencies,
                 )

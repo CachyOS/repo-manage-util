@@ -1,0 +1,1948 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..5eed816
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,250 @@
++cmake_minimum_required(VERSION 3.6)
++
++##
++## PROJECT
++## name and version
++##
++project(PostgreSQL
++        LANGUAGES C)
++
++##
++## INCLUDE
++##
++find_package(PkgConfig REQUIRED)
++pkg_check_modules(
++  LIBOPENSSL
++  REQUIRED
++  IMPORTED_TARGET
++  openssl>=3)
++pkg_check_modules(
++  LIBBSD
++  REQUIRED
++  IMPORTED_TARGET
++  libbsd>=0.11)
++pkg_check_modules(
++  LIBZSTD
++  REQUIRED
++  IMPORTED_TARGET
++  libzstd>=1.5)
++pkg_check_modules(
++  LIBLZ4
++  REQUIRED
++  IMPORTED_TARGET
++  liblz4>=1.9)
++pkg_check_modules(
++  LIBZLIB
++  REQUIRED
++  IMPORTED_TARGET
++  zlib>=1.2)
++pkg_check_modules(
++  LIBPAM
++  REQUIRED
++  IMPORTED_TARGET
++  pam>=1.5)
++
++if(CMAKE_C_COMPILER_ID MATCHES ".*Clang")
++  add_compile_options(-fcolor-diagnostics)
++elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
++  add_compile_options(-fdiagnostics-color=always)
++else()
++  message(STATUS "No colored compiler diagnostic set for '${CMAKE_C_COMPILER_ID}' compiler.")
++endif()
++
++###
++### pq library
++###
++
++if (FALSE)
++set(PQLIB_SOURCES
++    src/interfaces/libpq/fe-auth-scram.c
++    src/interfaces/libpq/fe-auth.c
++    src/interfaces/libpq/fe-cancel.c
++    src/interfaces/libpq/fe-connect.c
++    src/interfaces/libpq/fe-exec.c
++    src/interfaces/libpq/fe-lobj.c
++    src/interfaces/libpq/fe-misc.c
++    src/interfaces/libpq/fe-print.c
++    src/interfaces/libpq/fe-protocol3.c
++    src/interfaces/libpq/fe-secure.c
++    src/interfaces/libpq/fe-trace.c
++    src/interfaces/libpq/legacy-pqsignal.c
++    src/interfaces/libpq/libpq-events.c
++    src/interfaces/libpq/pqexpbuffer.c
++
++    src/interfaces/libpq/fe-secure-common.c
++    src/interfaces/libpq/fe-secure-openssl.c
++)
++
++set(PGCOMMONLIB_SOURCES
++    src/common/archive.c
++    src/common/base64.c
++    src/common/binaryheap.c
++    src/common/blkreftable.c
++    src/common/checksum_helper.c
++    src/common/compression.c
++    src/common/controldata_utils.c
++    src/common/encnames.c
++    src/common/exec.c
++    src/common/file_perm.c
++    src/common/file_utils.c
++    src/common/hashfn.c
++    src/common/ip.c
++    src/common/jsonapi.c
++    src/common/keywords.c
++    src/common/kwlookup.c
++    src/common/link-canary.c
++    src/common/md5_common.c
++    src/common/percentrepl.c
++    src/common/pg_get_line.c
++    src/common/pg_lzcompress.c
++    src/common/pg_prng.c
++    src/common/pgfnames.c
++    src/common/psprintf.c
++    src/common/relpath.c
++    src/common/rmtree.c
++    src/common/saslprep.c
++    src/common/scram-common.c
++    src/common/string.c
++    src/common/stringinfo.c
++    src/common/unicode_case.c
++    src/common/unicode_category.c
++    src/common/unicode_norm.c
++    src/common/username.c
++    src/common/wait_error.c
++    src/common/wchar.c
++
++    src/common/cryptohash_openssl.c
++    src/common/hmac_openssl.c
++    src/common/protocol_openssl.c
++
++    src/common/d2s.c
++    src/common/f2s.c
++
++    src/common/config_info.c
++
++    src/common/fe_memutils.c
++    src/common/restricted_token.c
++    src/common/sprompt.c
++
++    src/common/logging.c
++
++    #src/timezone/localtime.c
++    #src/timezone/pgtz.c
++    #src/timezone/strftime.c
++)
++
++set(PGPORTLIB_SOURCES
++    src/port/bsearch_arg.c
++    src/port/chklocale.c
++    src/port/inet_net_ntop.c
++    src/port/noblock.c
++    src/port/path.c
++    src/port/pg_bitutils.c
++    src/port/pg_strong_random.c
++    src/port/pgcheckdir.c
++    src/port/pgmkdirp.c
++    src/port/pgsleep.c
++    src/port/pgstrcasecmp.c
++    src/port/pgstrsignal.c
++    src/port/pqsignal.c
++    src/port/qsort.c
++    src/port/qsort_arg.c
++    src/port/quotes.c
++    src/port/snprintf.c
++    src/port/strerror.c
++    src/port/tar.c
++    src/port/user.c
++
++    src/port/pg_crc32c_sb8.c
++    src/port/pg_crc32c_sse42.c
++    src/port/pg_crc32c_sse42_choose.c
++)
++
++set(PGTYPESLIB_SOURCES
++    src/interfaces/ecpg/pgtypeslib/common.c
++    src/interfaces/ecpg/pgtypeslib/datetime.c
++    src/interfaces/ecpg/pgtypeslib/dt_common.c
++    src/interfaces/ecpg/pgtypeslib/interval.c
++    src/interfaces/ecpg/pgtypeslib/numeric.c
++    src/interfaces/ecpg/pgtypeslib/timestamp.c
++)
++
++add_library(pq STATIC ${PQLIB_SOURCES})
++add_library(pq::pq ALIAS pq)
++
++add_library(pgtypes STATIC ${PGTYPESLIB_SOURCES})
++add_library(pq::pgtypes ALIAS pgtypes)
++
++add_library(pgport STATIC ${PGPORTLIB_SOURCES})
++add_library(pq::pgport ALIAS pgport)
++
++add_library(pgcommon STATIC ${PGCOMMONLIB_SOURCES})
++add_library(pq::pgcommon ALIAS pgcommon)
++
++target_compile_definitions(pq PUBLIC -DSO_MAJOR_VERSION=5)
++target_compile_definitions(pgtypes PUBLIC -DSO_MAJOR_VERSION=3)
++target_compile_definitions(pgcommon PUBLIC -DFRONTEND -D_GNU_SOURCE -DVAL_CC="gcc" -DVAL_CPPFLAGS="-D_GNU_SOURCE" -DVAL_CFLAGS="-Wall -Wmissing-prototypes -Wpointer-arith -Werror=vla -Wendif-labels -Wimplicit-fallthrough=3 -Wcast-function-type -Wformat-security -fno-strict-aliasing -fwrapv -fexcess-precision=standard -Wno-format-truncation -Wno-stringop-truncation -O2" -DVAL_CFLAGS_SL="-fPIC" -DVAL_LDFLAGS="-Wl,--as-needed" -DVAL_LDFLAGS_EX="" -DVAL_LDFLAGS_SL="" -DVAL_LIBS="-lpgcommon -lpgport -lzstd -llz4 -lpam -lssl -lcrypto -lz -lm")
++target_compile_options(pgport INTERFACE -msse4.2 -Wno-ignored-attributes)
++target_compile_options(pgcommon INTERFACE -fno-strict-aliasing -fwrapv -fexcess-precision=standard)
++
++target_include_directories(pq PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/libpq)
++target_include_directories(pgport PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/port)
++target_include_directories(pgtypes PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/ecpg/pgtypeslib)
++target_include_directories(pgcommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/common)
++
++target_link_libraries(pq PUBLIC pq::pgcommon PkgConfig::LIBOPENSSL)
++target_link_libraries(pgport PUBLIC pq::pgcommon)
++target_link_libraries(pgcommon PUBLIC pq::pgport PkgConfig::LIBBSD PkgConfig::LIBZSTD PkgConfig::LIBLZ4 PkgConfig::LIBZLIB PkgConfig::LIBPAM m)
++target_link_libraries(pgtypes PUBLIC pq::pgcommon PkgConfig::LIBOPENSSL)
++endif()
++
++add_library(pq STATIC IMPORTED GLOBAL)
++add_library(pq::pq ALIAS pq)
++set_target_properties(pq
++        PROPERTIES
++        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/build/src/interfaces/libpq/libpq.so
++        )
++
++add_library(pgtypes STATIC IMPORTED GLOBAL)
++add_library(pq::pgtypes ALIAS pgtypes)
++set_target_properties(pgtypes
++        PROPERTIES
++        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/build/src/interfaces/ecpg/pgtypeslib/libpgtypes.a
++        )
++
++add_library(pgport STATIC IMPORTED GLOBAL)
++add_library(pq::pgport ALIAS pgport)
++set_target_properties(pgport
++        PROPERTIES
++        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/build/src/port/libpgport.a
++        )
++
++add_library(pgcommon STATIC IMPORTED GLOBAL)
++add_library(pq::pgcommon ALIAS pgcommon)
++set_target_properties(pgcommon
++        PROPERTIES
++        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/build/src/common/libpgcommon.a
++        )
++
++target_include_directories(pq INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/libpq)
++target_include_directories(pgport INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/port)
++target_include_directories(pgtypes INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/ecpg/pgtypeslib)
++target_include_directories(pgcommon INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/common)
++
++target_link_libraries(pq INTERFACE pq::pgcommon PkgConfig::LIBOPENSSL)
++target_link_libraries(pgport INTERFACE pq::pgcommon)
++target_link_libraries(pgcommon INTERFACE pq::pgport PkgConfig::LIBBSD PkgConfig::LIBZSTD PkgConfig::LIBLZ4 PkgConfig::LIBZLIB PkgConfig::LIBPAM m)
++target_link_libraries(pgtypes INTERFACE pq::pgcommon PkgConfig::LIBOPENSSL)
++
++set(PostgreSQL_FOUND ON CACHE INTERNAL "" FORCE)
++set(PostgreSQL_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/libpq ${CMAKE_CURRENT_SOURCE_DIR}/src/port ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/ecpg/pgtypeslib ${CMAKE_CURRENT_SOURCE_DIR}/src/common)
++
++add_library(PostgreSQL::PostgreSQL STATIC IMPORTED GLOBAL)
++#add_library(PostgreSQL::PostgreSQL ALIAS PostgreSQL)
++set_target_properties(PostgreSQL::PostgreSQL
++        PROPERTIES
++        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/libpostgresql.a
++        IMPORTED_CONFIGURATIONS ";RELEASE;DEBUG"
++        )
++target_include_directories(PostgreSQL::PostgreSQL INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/libpq ${CMAKE_CURRENT_SOURCE_DIR}/src/port ${CMAKE_CURRENT_SOURCE_DIR}/src/interfaces/ecpg/pgtypeslib ${CMAKE_CURRENT_SOURCE_DIR}/src/common)
++target_link_libraries(PostgreSQL::PostgreSQL INTERFACE pq::pq pq::pgport pq::pgcommon pq::pgtypes)
+diff --git a/create_combined_static.sh b/create_combined_static.sh
+new file mode 100755
+index 0000000..ad9afc7
+--- /dev/null
++++ b/create_combined_static.sh
+@@ -0,0 +1,61 @@
++#!/bin/bash
++# Copyright (C) 2025 Vladislav Nepogodin
++#
++# This file is part of CachyOS.
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, write to the Free Software Foundation, Inc.,
++# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++set -e
++
++cd "`dirname "$0"`"
++
++# Input static libraries
++input_libs=(
++  build/src/interfaces/libpq/libpq.a
++  build/src/common/libpgcommon.a # <-- contains _private in it
++  #build/src/common/libpgcommon_srv.a
++  build/src/fe_utils/libpgfeutils.a
++  build/src/port/libpgport.a
++)
++
++# Output combined static library name
++output_lib="libpostgresql.a"
++
++# Temporary directory for extracted object files
++# doesn't care much for the temp dir name,
++# as its removed before and after build
++tmp_dir="extracted_objects"
++
++# Create temporary directory
++rm -rf "$tmp_dir"
++mkdir -p "$tmp_dir"
++
++# Extract object files from each input library
++for lib in "${input_libs[@]}"; do
++  if [ -f "$lib" ]; then
++    echo "Extracting objects from $lib"
++    llvm-ar x "$lib" --output="$tmp_dir"
++  else
++    echo "Warning: Input library '$lib' not found. Skipping."
++  fi
++done
++
++# Create the combined static library from the extracted object files
++echo "Creating combined library $output_lib from objects in $tmp_dir"
++llvm-ar rcs "$output_lib" "$tmp_dir"/*.o
++
++# Clean up the temporary directory
++rm -rf "$tmp_dir"
++
++echo "Combined static library '$output_lib' created successfully."
+diff --git a/ecpg_config.h b/ecpg_config.h
+new file mode 100644
+index 0000000..f322a02
+--- /dev/null
++++ b/ecpg_config.h
+@@ -0,0 +1,19 @@
++/* src/interfaces/ecpg/include/ecpg_config.h.  Generated from ecpg_config.h.in by configure.  */
++/* Define to 1 if the system has the type `int64'. */
++/* #undef HAVE_INT64 */
++
++/* Define to 1 if `long int' works and is 64 bits. */
++#define HAVE_LONG_INT_64 1
++
++/* Define to 1 if the system has the type `long long int'. */
++#define HAVE_LONG_LONG_INT 1
++
++/* Define to 1 if `long long int' works and is 64 bits. */
++/* #undef HAVE_LONG_LONG_INT_64 */
++
++/* Define to 1 to use <stdbool.h> to define type bool. */
++#define PG_USE_STDBOOL 1
++
++/* Define to 1 to build client libraries as thread-safe code.
++ *    (--enable-thread-safety) */
++#define ENABLE_THREAD_SAFETY 1
+diff --git a/pg_config.h b/pg_config.h
+new file mode 100644
+index 0000000..fafdc47
+--- /dev/null
++++ b/pg_config.h
+@@ -0,0 +1,827 @@
++/* src/include/pg_config.h.  Generated from pg_config.h.in by configure.  */
++/* src/include/pg_config.h.in.  Generated from configure.ac by autoheader.  */
++
++/* Define if building universal (internal helper macro) */
++/* #undef AC_APPLE_UNIVERSAL_BUILD */
++
++/* The normal alignment of `double', in bytes. */
++#define ALIGNOF_DOUBLE 8
++
++/* The normal alignment of `int', in bytes. */
++#define ALIGNOF_INT 4
++
++/* The normal alignment of `long', in bytes. */
++#define ALIGNOF_LONG 8
++
++/* The normal alignment of `long long int', in bytes. */
++/* #undef ALIGNOF_LONG_LONG_INT */
++
++/* The normal alignment of `PG_INT128_TYPE', in bytes. */
++#define ALIGNOF_PG_INT128_TYPE 16
++
++/* The normal alignment of `short', in bytes. */
++#define ALIGNOF_SHORT 2
++
++/* Size of a disk block --- this also limits the size of a tuple. You can set
++   it bigger if you need bigger tuples (although TOAST should reduce the need
++   to have large tuples, since fields can be spread across multiple tuples).
++   BLCKSZ must be a power of 2. The maximum possible value of BLCKSZ is
++   currently 2^15 (32768). This is determined by the 15-bit widths of the
++   lp_off and lp_len fields in ItemIdData (see include/storage/itemid.h).
++   Changing BLCKSZ requires an initdb. */
++#define BLCKSZ 8192
++
++/* Saved arguments from configure */
++#define CONFIGURE_ARGS " '--prefix=/usr' '--mandir=/usr/share/man' '--datadir=/usr/share/postgresql' '--sysconfdir=/etc' '--with-openssl' '--with-pam' '--with-system-tzdata=/usr/share/zoneinfo' '--with-uuid=e2fs' '--with-lz4' '--with-zstd' '--enable-thread-safety' '--disable-rpath' 'CC=clang' 'CXX=clang++'"
++
++/* Define to the default TCP port number on which the server listens and to
++   which clients will try to connect. This can be overridden at run-time, but
++   it's convenient if your clients have the right default compiled in.
++   (--with-pgport=PORTNUM) */
++#define DEF_PGPORT 5432
++
++/* Define to the default TCP port number as a string constant. */
++#define DEF_PGPORT_STR "5432"
++
++/* Define to the file name extension of dynamically-loadable modules. */
++#define DLSUFFIX ".so"
++
++/* Define to build with GSSAPI support. (--with-gssapi) */
++/* #undef ENABLE_GSS */
++
++/* Define to 1 if you want National Language Support. (--enable-nls) */
++/* #undef ENABLE_NLS */
++
++/* Define to 1 if you have the `append_history' function. */
++#define HAVE_APPEND_HISTORY 1
++
++/* Define to 1 if you have the `ASN1_STRING_get0_data' function. */
++#define HAVE_ASN1_STRING_GET0_DATA 1
++
++/* Define to 1 if you want to use atomics if available. */
++#define HAVE_ATOMICS 1
++
++/* Define to 1 if you have the <atomic.h> header file. */
++/* #undef HAVE_ATOMIC_H */
++
++/* Define to 1 if you have the `backtrace_symbols' function. */
++#define HAVE_BACKTRACE_SYMBOLS 1
++
++/* Define to 1 if you have the `BIO_meth_new' function. */
++#define HAVE_BIO_METH_NEW 1
++
++/* Define to 1 if your compiler handles computed gotos. */
++#define HAVE_COMPUTED_GOTO 1
++
++/* Define to 1 if you have the `copyfile' function. */
++/* #undef HAVE_COPYFILE */
++
++/* Define to 1 if you have the <copyfile.h> header file. */
++/* #undef HAVE_COPYFILE_H */
++
++/* Define to 1 if you have the `copy_file_range' function. */
++#define HAVE_COPY_FILE_RANGE 1
++
++/* Define to 1 if you have the <crtdefs.h> header file. */
++/* #undef HAVE_CRTDEFS_H */
++
++/* Define to 1 if you have the `CRYPTO_lock' function. */
++/* #undef HAVE_CRYPTO_LOCK */
++
++/* Define to 1 if you have the declaration of `fdatasync', and to 0 if you
++   don't. */
++#define HAVE_DECL_FDATASYNC 1
++
++/* Define to 1 if you have the declaration of `F_FULLFSYNC', and to 0 if you
++   don't. */
++#define HAVE_DECL_F_FULLFSYNC 0
++
++/* Define to 1 if you have the declaration of
++   `LLVMCreateGDBRegistrationListener', and to 0 if you don't. */
++/* #undef HAVE_DECL_LLVMCREATEGDBREGISTRATIONLISTENER */
++
++/* Define to 1 if you have the declaration of
++   `LLVMCreatePerfJITEventListener', and to 0 if you don't. */
++/* #undef HAVE_DECL_LLVMCREATEPERFJITEVENTLISTENER */
++
++/* Define to 1 if you have the declaration of `posix_fadvise', and to 0 if you
++   don't. */
++#define HAVE_DECL_POSIX_FADVISE 1
++
++/* Define to 1 if you have the declaration of `preadv', and to 0 if you don't.
++   */
++#define HAVE_DECL_PREADV 1
++
++/* Define to 1 if you have the declaration of `pwritev', and to 0 if you
++   don't. */
++#define HAVE_DECL_PWRITEV 1
++
++/* Define to 1 if you have the declaration of `strlcat', and to 0 if you
++   don't. */
++#define HAVE_DECL_STRLCAT 1
++
++/* Define to 1 if you have the declaration of `strlcpy', and to 0 if you
++   don't. */
++#define HAVE_DECL_STRLCPY 1
++
++/* Define to 1 if you have the declaration of `strnlen', and to 0 if you
++   don't. */
++#define HAVE_DECL_STRNLEN 1
++
++/* Define to 1 if you have the <editline/history.h> header file. */
++/* #undef HAVE_EDITLINE_HISTORY_H */
++
++/* Define to 1 if you have the <editline/readline.h> header file. */
++/* #undef HAVE_EDITLINE_READLINE_H */
++
++/* Define to 1 if you have the <execinfo.h> header file. */
++#define HAVE_EXECINFO_H 1
++
++/* Define to 1 if you have the `explicit_bzero' function. */
++#define HAVE_EXPLICIT_BZERO 1
++
++/* Define to 1 if fseeko (and presumably ftello) exists and is declared. */
++#define HAVE_FSEEKO 1
++
++/* Define to 1 if you have __atomic_compare_exchange_n(int *, int *, int). */
++#define HAVE_GCC__ATOMIC_INT32_CAS 1
++
++/* Define to 1 if you have __atomic_compare_exchange_n(int64 *, int64 *,
++   int64). */
++#define HAVE_GCC__ATOMIC_INT64_CAS 1
++
++/* Define to 1 if you have __sync_lock_test_and_set(char *) and friends. */
++#define HAVE_GCC__SYNC_CHAR_TAS 1
++
++/* Define to 1 if you have __sync_val_compare_and_swap(int *, int, int). */
++#define HAVE_GCC__SYNC_INT32_CAS 1
++
++/* Define to 1 if you have __sync_lock_test_and_set(int *) and friends. */
++#define HAVE_GCC__SYNC_INT32_TAS 1
++
++/* Define to 1 if you have __sync_val_compare_and_swap(int64 *, int64, int64).
++   */
++#define HAVE_GCC__SYNC_INT64_CAS 1
++
++/* Define to 1 if you have the `getifaddrs' function. */
++#define HAVE_GETIFADDRS 1
++
++/* Define to 1 if you have the `getopt' function. */
++#define HAVE_GETOPT 1
++
++/* Define to 1 if you have the <getopt.h> header file. */
++#define HAVE_GETOPT_H 1
++
++/* Define to 1 if you have the `getopt_long' function. */
++#define HAVE_GETOPT_LONG 1
++
++/* Define to 1 if you have the `getpeereid' function. */
++/* #undef HAVE_GETPEEREID */
++
++/* Define to 1 if you have the `getpeerucred' function. */
++/* #undef HAVE_GETPEERUCRED */
++
++/* Define to 1 if you have the <gssapi_ext.h> header file. */
++/* #undef HAVE_GSSAPI_EXT_H */
++
++/* Define to 1 if you have the <gssapi/gssapi_ext.h> header file. */
++/* #undef HAVE_GSSAPI_GSSAPI_EXT_H */
++
++/* Define to 1 if you have the <gssapi/gssapi.h> header file. */
++/* #undef HAVE_GSSAPI_GSSAPI_H */
++
++/* Define to 1 if you have the <gssapi.h> header file. */
++/* #undef HAVE_GSSAPI_H */
++
++/* Define to 1 if you have the <history.h> header file. */
++/* #undef HAVE_HISTORY_H */
++
++/* Define to 1 if you have the `history_truncate_file' function. */
++#define HAVE_HISTORY_TRUNCATE_FILE 1
++
++/* Define to 1 if you have the `HMAC_CTX_free' function. */
++#define HAVE_HMAC_CTX_FREE 1
++
++/* Define to 1 if you have the `HMAC_CTX_new' function. */
++#define HAVE_HMAC_CTX_NEW 1
++
++/* Define to 1 if you have the <ifaddrs.h> header file. */
++#define HAVE_IFADDRS_H 1
++
++/* Define to 1 if you have the `inet_aton' function. */
++#define HAVE_INET_ATON 1
++
++/* Define to 1 if you have the `inet_pton' function. */
++#define HAVE_INET_PTON 1
++
++/* Define to 1 if the system has the type `int64'. */
++/* #undef HAVE_INT64 */
++
++/* Define to 1 if the system has the type `int8'. */
++/* #undef HAVE_INT8 */
++
++/* Define to 1 if you have the <inttypes.h> header file. */
++#define HAVE_INTTYPES_H 1
++
++/* Define to 1 if you have the global variable 'int opterr'. */
++#define HAVE_INT_OPTERR 1
++
++/* Define to 1 if you have the global variable 'int optreset'. */
++/* #undef HAVE_INT_OPTRESET */
++
++/* Define to 1 if you have the global variable 'int timezone'. */
++#define HAVE_INT_TIMEZONE 1
++
++/* Define to 1 if __builtin_constant_p(x) implies "i"(x) acceptance. */
++/* #undef HAVE_I_CONSTRAINT__BUILTIN_CONSTANT_P */
++
++/* Define to 1 if you have the `kqueue' function. */
++/* #undef HAVE_KQUEUE */
++
++/* Define to 1 if you have the <langinfo.h> header file. */
++#define HAVE_LANGINFO_H 1
++
++/* Define to 1 if you have the `ldap_initialize' function. */
++/* #undef HAVE_LDAP_INITIALIZE */
++
++/* Define to 1 if you have the `crypto' library (-lcrypto). */
++#define HAVE_LIBCRYPTO 1
++
++/* Define to 1 if you have the `ldap' library (-lldap). */
++/* #undef HAVE_LIBLDAP */
++
++/* Define to 1 if you have the `lz4' library (-llz4). */
++#define HAVE_LIBLZ4 1
++
++/* Define to 1 if you have the `m' library (-lm). */
++#define HAVE_LIBM 1
++
++/* Define to 1 if you have the `pam' library (-lpam). */
++#define HAVE_LIBPAM 1
++
++/* Define if you have a function readline library */
++#define HAVE_LIBREADLINE 1
++
++/* Define to 1 if you have the `selinux' library (-lselinux). */
++/* #undef HAVE_LIBSELINUX */
++
++/* Define to 1 if you have the `ssl' library (-lssl). */
++#define HAVE_LIBSSL 1
++
++/* Define to 1 if you have the `wldap32' library (-lwldap32). */
++/* #undef HAVE_LIBWLDAP32 */
++
++/* Define to 1 if you have the `xml2' library (-lxml2). */
++/* #undef HAVE_LIBXML2 */
++
++/* Define to 1 if you have the `xslt' library (-lxslt). */
++/* #undef HAVE_LIBXSLT */
++
++/* Define to 1 if you have the `z' library (-lz). */
++#define HAVE_LIBZ 1
++
++/* Define to 1 if you have the `zstd' library (-lzstd). */
++#define HAVE_LIBZSTD 1
++
++/* Define to 1 if `long int' works and is 64 bits. */
++#define HAVE_LONG_INT_64 1
++
++/* Define to 1 if `long long int' works and is 64 bits. */
++/* #undef HAVE_LONG_LONG_INT_64 */
++
++/* Define to 1 if you have the <mbarrier.h> header file. */
++/* #undef HAVE_MBARRIER_H */
++
++/* Define to 1 if you have the `mbstowcs_l' function. */
++/* #undef HAVE_MBSTOWCS_L */
++
++/* Define to 1 if you have the <memory.h> header file. */
++#define HAVE_MEMORY_H 1
++
++/* Define to 1 if you have the `memset_s' function. */
++/* #undef HAVE_MEMSET_S */
++
++/* Define to 1 if you have the `mkdtemp' function. */
++#define HAVE_MKDTEMP 1
++
++/* Define to 1 if you have the `OPENSSL_init_ssl' function. */
++#define HAVE_OPENSSL_INIT_SSL 1
++
++/* Define to 1 if you have the <ossp/uuid.h> header file. */
++/* #undef HAVE_OSSP_UUID_H */
++
++/* Define to 1 if you have the <pam/pam_appl.h> header file. */
++/* #undef HAVE_PAM_PAM_APPL_H */
++
++/* Define to 1 if you have the `posix_fadvise' function. */
++#define HAVE_POSIX_FADVISE 1
++
++/* Define to 1 if you have the `posix_fallocate' function. */
++#define HAVE_POSIX_FALLOCATE 1
++
++/* Define to 1 if you have the `ppoll' function. */
++#define HAVE_PPOLL 1
++
++/* Define if you have POSIX threads libraries and header files. */
++#define HAVE_PTHREAD 1
++
++/* Define to 1 if you have the `pthread_barrier_wait' function. */
++#define HAVE_PTHREAD_BARRIER_WAIT 1
++
++/* Define to 1 if you have the `pthread_is_threaded_np' function. */
++/* #undef HAVE_PTHREAD_IS_THREADED_NP */
++
++/* Have PTHREAD_PRIO_INHERIT. */
++#define HAVE_PTHREAD_PRIO_INHERIT 1
++
++/* Define to 1 if you have the <readline.h> header file. */
++/* #undef HAVE_READLINE_H */
++
++/* Define to 1 if you have the <readline/history.h> header file. */
++#define HAVE_READLINE_HISTORY_H 1
++
++/* Define to 1 if you have the <readline/readline.h> header file. */
++#define HAVE_READLINE_READLINE_H 1
++
++/* Define to 1 if you have the `rl_completion_matches' function. */
++#define HAVE_RL_COMPLETION_MATCHES 1
++
++/* Define to 1 if you have the global variable 'rl_completion_suppress_quote'.
++   */
++#define HAVE_RL_COMPLETION_SUPPRESS_QUOTE 1
++
++/* Define to 1 if you have the `rl_filename_completion_function' function. */
++#define HAVE_RL_FILENAME_COMPLETION_FUNCTION 1
++
++/* Define to 1 if you have the global variable 'rl_filename_quote_characters'.
++   */
++#define HAVE_RL_FILENAME_QUOTE_CHARACTERS 1
++
++/* Define to 1 if you have the global variable 'rl_filename_quoting_function'.
++   */
++#define HAVE_RL_FILENAME_QUOTING_FUNCTION 1
++
++/* Define to 1 if you have the `rl_reset_screen_size' function. */
++#define HAVE_RL_RESET_SCREEN_SIZE 1
++
++/* Define to 1 if you have the `rl_variable_bind' function. */
++#define HAVE_RL_VARIABLE_BIND 1
++
++/* Define to 1 if you have the <security/pam_appl.h> header file. */
++#define HAVE_SECURITY_PAM_APPL_H 1
++
++/* Define to 1 if you have the `setproctitle' function. */
++/* #undef HAVE_SETPROCTITLE */
++
++/* Define to 1 if you have the `setproctitle_fast' function. */
++/* #undef HAVE_SETPROCTITLE_FAST */
++
++/* Define to 1 if the system has the type `socklen_t'. */
++#define HAVE_SOCKLEN_T 1
++
++/* Define to 1 if you have spinlocks. */
++#define HAVE_SPINLOCKS 1
++
++/* Define to 1 if you have the `SSL_CTX_set_cert_cb' function. */
++#define HAVE_SSL_CTX_SET_CERT_CB 1
++
++/* Define to 1 if you have the `SSL_CTX_set_num_tickets' function. */
++#define HAVE_SSL_CTX_SET_NUM_TICKETS 1
++
++/* Define to 1 if stdbool.h conforms to C99. */
++#define HAVE_STDBOOL_H 1
++
++/* Define to 1 if you have the <stdint.h> header file. */
++#define HAVE_STDINT_H 1
++
++/* Define to 1 if you have the <stdlib.h> header file. */
++#define HAVE_STDLIB_H 1
++
++/* Define to 1 if you have the `strchrnul' function. */
++#define HAVE_STRCHRNUL 1
++
++/* Define to 1 if you have the `strerror_r' function. */
++#define HAVE_STRERROR_R 1
++
++/* Define to 1 if you have the <strings.h> header file. */
++#define HAVE_STRINGS_H 1
++
++/* Define to 1 if you have the <string.h> header file. */
++#define HAVE_STRING_H 1
++
++/* Define to 1 if you have the `strlcat' function. */
++#define HAVE_STRLCAT 1
++
++/* Define to 1 if you have the `strlcpy' function. */
++#define HAVE_STRLCPY 1
++
++/* Define to 1 if you have the `strnlen' function. */
++#define HAVE_STRNLEN 1
++
++/* Define to 1 if you have the `strsignal' function. */
++#define HAVE_STRSIGNAL 1
++
++/* Define to 1 if the system has the type `struct option'. */
++#define HAVE_STRUCT_OPTION 1
++
++/* Define to 1 if `sa_len' is a member of `struct sockaddr'. */
++/* #undef HAVE_STRUCT_SOCKADDR_SA_LEN */
++
++/* Define to 1 if `tm_zone' is a member of `struct tm'. */
++#define HAVE_STRUCT_TM_TM_ZONE 1
++
++/* Define to 1 if you have the `syncfs' function. */
++#define HAVE_SYNCFS 1
++
++/* Define to 1 if you have the `sync_file_range' function. */
++#define HAVE_SYNC_FILE_RANGE 1
++
++/* Define to 1 if you have the syslog interface. */
++#define HAVE_SYSLOG 1
++
++/* Define to 1 if you have the <sys/epoll.h> header file. */
++#define HAVE_SYS_EPOLL_H 1
++
++/* Define to 1 if you have the <sys/event.h> header file. */
++/* #undef HAVE_SYS_EVENT_H */
++
++/* Define to 1 if you have the <sys/personality.h> header file. */
++#define HAVE_SYS_PERSONALITY_H 1
++
++/* Define to 1 if you have the <sys/prctl.h> header file. */
++#define HAVE_SYS_PRCTL_H 1
++
++/* Define to 1 if you have the <sys/procctl.h> header file. */
++/* #undef HAVE_SYS_PROCCTL_H */
++
++/* Define to 1 if you have the <sys/signalfd.h> header file. */
++#define HAVE_SYS_SIGNALFD_H 1
++
++/* Define to 1 if you have the <sys/stat.h> header file. */
++#define HAVE_SYS_STAT_H 1
++
++/* Define to 1 if you have the <sys/types.h> header file. */
++#define HAVE_SYS_TYPES_H 1
++
++/* Define to 1 if you have the <sys/ucred.h> header file. */
++/* #undef HAVE_SYS_UCRED_H */
++
++/* Define to 1 if you have the <termios.h> header file. */
++#define HAVE_TERMIOS_H 1
++
++/* Define to 1 if your compiler understands `typeof' or something similar. */
++#define HAVE_TYPEOF 1
++
++/* Define to 1 if you have the <ucred.h> header file. */
++/* #undef HAVE_UCRED_H */
++
++/* Define to 1 if the system has the type `uint64'. */
++/* #undef HAVE_UINT64 */
++
++/* Define to 1 if the system has the type `uint8'. */
++/* #undef HAVE_UINT8 */
++
++/* Define to 1 if the system has the type `union semun'. */
++/* #undef HAVE_UNION_SEMUN */
++
++/* Define to 1 if you have the <unistd.h> header file. */
++#define HAVE_UNISTD_H 1
++
++/* Define to 1 if you have the `uselocale' function. */
++#define HAVE_USELOCALE 1
++
++/* Define to 1 if you have BSD UUID support. */
++/* #undef HAVE_UUID_BSD */
++
++/* Define to 1 if you have E2FS UUID support. */
++#define HAVE_UUID_E2FS 1
++
++/* Define to 1 if you have the <uuid.h> header file. */
++/* #undef HAVE_UUID_H */
++
++/* Define to 1 if you have OSSP UUID support. */
++/* #undef HAVE_UUID_OSSP */
++
++/* Define to 1 if you have the <uuid/uuid.h> header file. */
++#define HAVE_UUID_UUID_H 1
++
++/* Define to 1 if your compiler knows the visibility("hidden") attribute. */
++#define HAVE_VISIBILITY_ATTRIBUTE 1
++
++/* Define to 1 if you have the `wcstombs_l' function. */
++/* #undef HAVE_WCSTOMBS_L */
++
++/* Define to 1 if you have the `X509_get_signature_info' function. */
++#define HAVE_X509_GET_SIGNATURE_INFO 1
++
++/* Define to 1 if the assembler supports X86_64's POPCNTQ instruction. */
++#define HAVE_X86_64_POPCNTQ 1
++
++/* Define to 1 if you have XSAVE intrinsics. */
++#define HAVE_XSAVE_INTRINSICS 1
++
++/* Define to 1 if the system has the type `_Bool'. */
++#define HAVE__BOOL 1
++
++/* Define to 1 if your compiler understands __builtin_bswap16. */
++#define HAVE__BUILTIN_BSWAP16 1
++
++/* Define to 1 if your compiler understands __builtin_bswap32. */
++#define HAVE__BUILTIN_BSWAP32 1
++
++/* Define to 1 if your compiler understands __builtin_bswap64. */
++#define HAVE__BUILTIN_BSWAP64 1
++
++/* Define to 1 if your compiler understands __builtin_clz. */
++#define HAVE__BUILTIN_CLZ 1
++
++/* Define to 1 if your compiler understands __builtin_constant_p. */
++#define HAVE__BUILTIN_CONSTANT_P 1
++
++/* Define to 1 if your compiler understands __builtin_ctz. */
++#define HAVE__BUILTIN_CTZ 1
++
++/* Define to 1 if your compiler understands __builtin_frame_address. */
++#define HAVE__BUILTIN_FRAME_ADDRESS 1
++
++/* Define to 1 if your compiler understands __builtin_$op_overflow. */
++#define HAVE__BUILTIN_OP_OVERFLOW 1
++
++/* Define to 1 if your compiler understands __builtin_popcount. */
++#define HAVE__BUILTIN_POPCOUNT 1
++
++/* Define to 1 if your compiler understands __builtin_types_compatible_p. */
++#define HAVE__BUILTIN_TYPES_COMPATIBLE_P 1
++
++/* Define to 1 if your compiler understands __builtin_unreachable. */
++#define HAVE__BUILTIN_UNREACHABLE 1
++
++/* Define to 1 if you have the `_configthreadlocale' function. */
++/* #undef HAVE__CONFIGTHREADLOCALE */
++
++/* Define to 1 if you have __cpuid. */
++/* #undef HAVE__CPUID */
++
++/* Define to 1 if you have __cpuidex. */
++/* #undef HAVE__CPUIDEX */
++
++/* Define to 1 if you have __get_cpuid. */
++#define HAVE__GET_CPUID 1
++
++/* Define to 1 if you have __get_cpuid_count. */
++#define HAVE__GET_CPUID_COUNT 1
++
++/* Define to 1 if your compiler understands _Static_assert. */
++#define HAVE__STATIC_ASSERT 1
++
++/* Define to the appropriate printf length modifier for 64-bit ints. */
++#define INT64_MODIFIER "l"
++
++/* Define to 1 if `locale_t' requires <xlocale.h>. */
++/* #undef LOCALE_T_IN_XLOCALE */
++
++/* Define as the maximum alignment requirement of any C data type. */
++#define MAXIMUM_ALIGNOF 8
++
++/* Define bytes to use libc memset(). */
++#define MEMSET_LOOP_LIMIT 1024
++
++/* Define to the OpenSSL API version in use. This avoids deprecation warnings
++   from newer OpenSSL versions. */
++#define OPENSSL_API_COMPAT 0x10002000L
++
++/* Define to the address where bug reports for this package should be sent. */
++#define PACKAGE_BUGREPORT "pgsql-bugs@lists.postgresql.org"
++
++/* Define to the full name of this package. */
++#define PACKAGE_NAME "PostgreSQL"
++
++/* Define to the full name and version of this package. */
++#define PACKAGE_STRING "PostgreSQL 17.0"
++
++/* Define to the one symbol short name of this package. */
++#define PACKAGE_TARNAME "postgresql"
++
++/* Define to the home page for this package. */
++#define PACKAGE_URL "https://www.postgresql.org/"
++
++/* Define to the version of this package. */
++#define PACKAGE_VERSION "17.0"
++
++/* Define to the name of a signed 128-bit integer type. */
++#define PG_INT128_TYPE __int128
++
++/* Define to the name of a signed 64-bit integer type. */
++#define PG_INT64_TYPE long int
++
++/* Define to the name of the default PostgreSQL service principal in Kerberos
++   (GSSAPI). (--with-krb-srvnam=NAME) */
++#define PG_KRB_SRVNAM "postgres"
++
++/* PostgreSQL major version as a string */
++#define PG_MAJORVERSION "17"
++
++/* PostgreSQL major version number */
++#define PG_MAJORVERSION_NUM 17
++
++/* PostgreSQL minor version number */
++#define PG_MINORVERSION_NUM 0
++
++/* Define to best printf format archetype, usually gnu_printf if available. */
++#define PG_PRINTF_ATTRIBUTE printf
++
++/* Define to 1 to use <stdbool.h> to define type bool. */
++#define PG_USE_STDBOOL 1
++
++/* PostgreSQL version as a string */
++#define PG_VERSION "17.0"
++
++/* PostgreSQL version as a number */
++#define PG_VERSION_NUM 170000
++
++/* A string containing the version number, platform, and C compiler */
++#define PG_VERSION_STR "PostgreSQL 17.0 on x86_64-pc-linux-gnu, compiled by clang version 19.1.0, 64-bit"
++
++/* Define to 1 to allow profiling output to be saved separately for each
++   process. */
++/* #undef PROFILE_PID_DIR */
++
++/* Define to necessary symbol if this constant uses a non-standard name on
++   your system. */
++/* #undef PTHREAD_CREATE_JOINABLE */
++
++/* RELSEG_SIZE is the maximum number of blocks allowed in one disk file. Thus,
++   the maximum size of a single file is RELSEG_SIZE * BLCKSZ; relations bigger
++   than that are divided into multiple files. RELSEG_SIZE * BLCKSZ must be
++   less than your OS' limit on file size. This is often 2 GB or 4GB in a
++   32-bit operating system, unless you have large file support enabled. By
++   default, we make the limit 1 GB to avoid any possible integer-overflow
++   problems within the OS. A limit smaller than necessary only means we divide
++   a large relation into more chunks than necessary, so it seems best to err
++   in the direction of a small limit. A power-of-2 value is recommended to
++   save a few cycles in md.c, but is not absolutely required. Changing
++   RELSEG_SIZE requires an initdb. */
++#define RELSEG_SIZE 131072
++
++/* The size of `bool', as computed by sizeof. */
++#define SIZEOF_BOOL 1
++
++/* The size of `long', as computed by sizeof. */
++#define SIZEOF_LONG 8
++
++/* The size of `off_t', as computed by sizeof. */
++#define SIZEOF_OFF_T 8
++
++/* The size of `size_t', as computed by sizeof. */
++#define SIZEOF_SIZE_T 8
++
++/* The size of `void *', as computed by sizeof. */
++#define SIZEOF_VOID_P 8
++
++/* Define to 1 if you have the ANSI C header files. */
++#define STDC_HEADERS 1
++
++/* Define to 1 if strerror_r() returns int. */
++/* #undef STRERROR_R_INT */
++
++/* Define to 1 to use ARMv8 CRC Extension. */
++/* #undef USE_ARMV8_CRC32C */
++
++/* Define to 1 to use ARMv8 CRC Extension with a runtime check. */
++/* #undef USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK */
++
++/* Define to 1 to build with assertion checks. (--enable-cassert) */
++/* #undef USE_ASSERT_CHECKING */
++
++/* Define to 1 to use AVX-512 popcount instructions with a runtime check. */
++#define USE_AVX512_POPCNT_WITH_RUNTIME_CHECK 1
++
++/* Define to 1 to build with Bonjour support. (--with-bonjour) */
++/* #undef USE_BONJOUR */
++
++/* Define to 1 to build with BSD Authentication support. (--with-bsd-auth) */
++/* #undef USE_BSD_AUTH */
++
++/* Define to build with ICU support. (--with-icu) */
++#define USE_ICU 1
++
++/* Define to 1 to build with injection points. (--enable-injection-points) */
++/* #undef USE_INJECTION_POINTS */
++
++/* Define to 1 to build with LDAP support. (--with-ldap) */
++/* #undef USE_LDAP */
++
++/* Define to 1 to build with XML support. (--with-libxml) */
++/* #undef USE_LIBXML */
++
++/* Define to 1 to use XSLT support when building contrib/xml2.
++   (--with-libxslt) */
++/* #undef USE_LIBXSLT */
++
++/* Define to 1 to build with LLVM based JIT support. (--with-llvm) */
++/* #undef USE_LLVM */
++
++/* Define to 1 to use LoongArch CRCC instructions. */
++/* #undef USE_LOONGARCH_CRC32C */
++
++/* Define to 1 to build with LZ4 support. (--with-lz4) */
++#define USE_LZ4 1
++
++/* Define to select named POSIX semaphores. */
++/* #undef USE_NAMED_POSIX_SEMAPHORES */
++
++/* Define to 1 to build with OpenSSL support. (--with-ssl=openssl) */
++#define USE_OPENSSL 1
++
++/* Define to 1 to build with PAM support. (--with-pam) */
++#define USE_PAM 1
++
++/* Define to 1 to use software CRC-32C implementation (slicing-by-8). */
++/* #undef USE_SLICING_BY_8_CRC32C */
++
++/* Define to 1 use Intel SSE 4.2 CRC instructions. */
++/* #undef USE_SSE42_CRC32C */
++
++/* Define to 1 to use Intel SSE 4.2 CRC instructions with a runtime check. */
++#define USE_SSE42_CRC32C_WITH_RUNTIME_CHECK 1
++
++/* Define to build with systemd support. (--with-systemd) */
++/* #undef USE_SYSTEMD */
++
++/* Define to select SysV-style semaphores. */
++/* #undef USE_SYSV_SEMAPHORES */
++
++/* Define to select SysV-style shared memory. */
++#define USE_SYSV_SHARED_MEMORY 1
++
++/* Define to select unnamed POSIX semaphores. */
++#define USE_UNNAMED_POSIX_SEMAPHORES 1
++
++/* Define to select Win32-style semaphores. */
++/* #undef USE_WIN32_SEMAPHORES */
++
++/* Define to select Win32-style shared memory. */
++/* #undef USE_WIN32_SHARED_MEMORY */
++
++/* Define to 1 to build with ZSTD support. (--with-zstd) */
++#define USE_ZSTD 1
++
++/* Define to 1 if `wcstombs_l' requires <xlocale.h>. */
++/* #undef WCSTOMBS_L_IN_XLOCALE */
++
++/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
++   significant byte first (like Motorola and SPARC, unlike Intel). */
++#if defined AC_APPLE_UNIVERSAL_BUILD
++# if defined __BIG_ENDIAN__
++#  define WORDS_BIGENDIAN 1
++# endif
++#else
++# ifndef WORDS_BIGENDIAN
++/* #  undef WORDS_BIGENDIAN */
++# endif
++#endif
++
++/* Size of a WAL file block. This need have no particular relation to BLCKSZ.
++   XLOG_BLCKSZ must be a power of 2, and if your system supports O_DIRECT I/O,
++   XLOG_BLCKSZ must be a multiple of the alignment requirement for direct-I/O
++   buffers, else direct I/O may fail. Changing XLOG_BLCKSZ requires an initdb.
++   */
++#define XLOG_BLCKSZ 8192
++
++
++
++/* Number of bits in a file offset, on hosts where this is settable. */
++/* #undef _FILE_OFFSET_BITS */
++
++/* Define to 1 to make fseeko visible on some hosts (e.g. glibc 2.2). */
++/* #undef _LARGEFILE_SOURCE */
++
++/* Define for large files, on AIX-style hosts. */
++/* #undef _LARGE_FILES */
++
++/* Define to `__inline__' or `__inline' if that's what the C compiler
++   calls it, or to nothing if 'inline' is not supported under any name.  */
++#ifndef __cplusplus
++/* #undef inline */
++#endif
++
++/* Define to keyword to use for C99 restrict support, or to nothing if not
++   supported */
++#define pg_restrict __restrict
++
++/* Define to the equivalent of the C99 'restrict' keyword, or to
++   nothing if this is not supported.  Do not define if restrict is
++   supported directly.  */
++#define restrict __restrict
++/* Work around a bug in Sun C++: it does not support _Restrict or
++   __restrict__, even though the corresponding Sun C compiler ends up with
++   "#define restrict _Restrict" or "#define restrict __restrict__" in the
++   previous line.  Perhaps some future version of Sun C++ will work with
++   restrict; if so, hopefully it defines __RESTRICT like Sun C does.  */
++#if defined __SUNPRO_CC && !defined __RESTRICT
++# define _Restrict
++# define __restrict__
++#endif
++
++/* Define to how the compiler spells `typeof'. */
++/* #undef typeof */
+diff --git a/pg_config_ext.h b/pg_config_ext.h
+new file mode 100644
+index 0000000..b4c07dd
+--- /dev/null
++++ b/pg_config_ext.h
+@@ -0,0 +1,8 @@
++/* src/include/pg_config_ext.h.  Generated from pg_config_ext.h.in by configure.  */
++/*
++ * src/include/pg_config_ext.h.in.  This is generated manually, not by
++ * autoheader, since we want to limit which symbols get defined here.
++ */
++
++/* Define to the name of a signed 64-bit integer type. */
++#define PG_INT64_TYPE long int
+diff --git a/pg_config_manual.h b/pg_config_manual.h
+new file mode 100644
+index 0000000..3bbf836
+--- /dev/null
++++ b/pg_config_manual.h
+@@ -0,0 +1,385 @@
++/*------------------------------------------------------------------------
++ * PostgreSQL manual configuration settings
++ *
++ * This file contains various configuration symbols and limits.  In
++ * all cases, changing them is only useful in very rare situations or
++ * for developers.  If you edit any of these, be sure to do a *full*
++ * rebuild (and an initdb if noted).
++ *
++ * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
++ * Portions Copyright (c) 1994, Regents of the University of California
++ *
++ * src/include/pg_config_manual.h
++ *------------------------------------------------------------------------
++ */
++
++/*
++ * This is the default value for wal_segment_size to be used when initdb is run
++ * without the --wal-segsize option.  It must be a valid segment size.
++ */
++#define DEFAULT_XLOG_SEG_SIZE	(16*1024*1024)
++
++/*
++ * Maximum length for identifiers (e.g. table names, column names,
++ * function names).  Names actually are limited to one fewer byte than this,
++ * because the length must include a trailing zero byte.
++ *
++ * Changing this requires an initdb.
++ */
++#define NAMEDATALEN 64
++
++/*
++ * Maximum number of arguments to a function.
++ *
++ * The minimum value is 8 (GIN indexes use 8-argument support functions).
++ * The maximum possible value is around 600 (limited by index tuple size in
++ * pg_proc's index; BLCKSZ larger than 8K would allow more).  Values larger
++ * than needed will waste memory and processing time, but do not directly
++ * cost disk space.
++ *
++ * Changing this does not require an initdb, but it does require a full
++ * backend recompile (including any user-defined C functions).
++ */
++#define FUNC_MAX_ARGS		100
++
++/*
++ * When creating a product derived from PostgreSQL with changes that cause
++ * incompatibilities for loadable modules, it is recommended to change this
++ * string so that dfmgr.c can refuse to load incompatible modules with a clean
++ * error message.  Typical examples that cause incompatibilities are any
++ * changes to node tags or node structures.  (Note that dfmgr.c already
++ * detects common sources of incompatibilities due to major version
++ * differences and due to some changed compile-time constants.  This setting
++ * is for catching anything that cannot be detected in a straightforward way.)
++ *
++ * There is no prescribed format for the string.  The suggestion is to include
++ * product or company name, and optionally any internally-relevant ABI
++ * version.  Example: "ACME Postgres/1.2".  Note that the string will appear
++ * in a user-facing error message if an ABI mismatch is detected.
++ */
++#define FMGR_ABI_EXTRA		"PostgreSQL"
++
++/*
++ * Maximum number of columns in an index.  There is little point in making
++ * this anything but a multiple of 32, because the main cost is associated
++ * with index tuple header size (see access/itup.h).
++ *
++ * Changing this requires an initdb.
++ */
++#define INDEX_MAX_KEYS		32
++
++/*
++ * Maximum number of columns in a partition key
++ */
++#define PARTITION_MAX_KEYS	32
++
++/*
++ * Decide whether built-in 8-byte types, including float8, int8, and
++ * timestamp, are passed by value.  This is on by default if sizeof(Datum) >=
++ * 8 (that is, on 64-bit platforms).  If sizeof(Datum) < 8 (32-bit platforms),
++ * this must be off.  We keep this here as an option so that it is easy to
++ * test the pass-by-reference code paths on 64-bit platforms.
++ *
++ * Changing this requires an initdb.
++ */
++#if SIZEOF_VOID_P >= 8
++#define USE_FLOAT8_BYVAL 1
++#endif
++
++/*
++ * When we don't have native spinlocks, we use semaphores to simulate them.
++ * Decreasing this value reduces consumption of OS resources; increasing it
++ * may improve performance, but supplying a real spinlock implementation is
++ * probably far better.
++ */
++#define NUM_SPINLOCK_SEMAPHORES		128
++
++/*
++ * When we have neither spinlocks nor atomic operations support we're
++ * implementing atomic operations on top of spinlock on top of semaphores. To
++ * be safe against atomic operations while holding a spinlock separate
++ * semaphores have to be used.
++ */
++#define NUM_ATOMICS_SEMAPHORES		64
++
++/*
++ * MAXPGPATH: standard size of a pathname buffer in PostgreSQL (hence,
++ * maximum usable pathname length is one less).
++ *
++ * We'd use a standard system header symbol for this, if there weren't
++ * so many to choose from: MAXPATHLEN, MAX_PATH, PATH_MAX are all
++ * defined by different "standards", and often have different values
++ * on the same platform!  So we just punt and use a reasonably
++ * generous setting here.
++ */
++#define MAXPGPATH		1024
++
++/*
++ * You can try changing this if you have a machine with bytes of
++ * another size, but no guarantee...
++ */
++#define BITS_PER_BYTE		8
++
++/*
++ * Preferred alignment for disk I/O buffers.  On some CPUs, copies between
++ * user space and kernel space are significantly faster if the user buffer
++ * is aligned on a larger-than-MAXALIGN boundary.  Ideally this should be
++ * a platform-dependent value, but for now we just hard-wire it.
++ */
++#define ALIGNOF_BUFFER	32
++
++/*
++ * If EXEC_BACKEND is defined, the postmaster uses an alternative method for
++ * starting subprocesses: Instead of simply using fork(), as is standard on
++ * Unix platforms, it uses fork()+exec() or something equivalent on Windows,
++ * as well as lots of extra code to bring the required global state to those
++ * new processes.  This must be enabled on Windows (because there is no
++ * fork()).  On other platforms, it's only useful for verifying those
++ * otherwise Windows-specific code paths.
++ */
++#if defined(WIN32) && !defined(__CYGWIN__)
++#define EXEC_BACKEND
++#endif
++
++/*
++ * USE_POSIX_FADVISE controls whether Postgres will attempt to use the
++ * posix_fadvise() kernel call.  Usually the automatic configure tests are
++ * sufficient, but some older Linux distributions had broken versions of
++ * posix_fadvise().  If necessary you can remove the #define here.
++ */
++#if HAVE_DECL_POSIX_FADVISE && defined(HAVE_POSIX_FADVISE)
++#define USE_POSIX_FADVISE
++#endif
++
++/*
++ * USE_PREFETCH code should be compiled only if we have a way to implement
++ * prefetching.  (This is decoupled from USE_POSIX_FADVISE because there
++ * might in future be support for alternative low-level prefetch APIs.
++ * If you change this, you probably need to adjust the error message in
++ * check_effective_io_concurrency.)
++ */
++#ifdef USE_POSIX_FADVISE
++#define USE_PREFETCH
++#endif
++
++/*
++ * Default and maximum values for backend_flush_after, bgwriter_flush_after
++ * and checkpoint_flush_after; measured in blocks.  Currently, these are
++ * enabled by default if sync_file_range() exists, ie, only on Linux.  Perhaps
++ * we could also enable by default if we have mmap and msync(MS_ASYNC)?
++ */
++#ifdef HAVE_SYNC_FILE_RANGE
++#define DEFAULT_BACKEND_FLUSH_AFTER 0	/* never enabled by default */
++#define DEFAULT_BGWRITER_FLUSH_AFTER 64
++#define DEFAULT_CHECKPOINT_FLUSH_AFTER 32
++#else
++#define DEFAULT_BACKEND_FLUSH_AFTER 0
++#define DEFAULT_BGWRITER_FLUSH_AFTER 0
++#define DEFAULT_CHECKPOINT_FLUSH_AFTER 0
++#endif
++/* upper limit for all three variables */
++#define WRITEBACK_MAX_PENDING_FLUSHES 256
++
++/*
++ * USE_SSL code should be compiled only when compiling with an SSL
++ * implementation.
++ */
++#ifdef USE_OPENSSL
++#define USE_SSL
++#endif
++
++/*
++ * This is the default directory in which AF_UNIX socket files are
++ * placed.  Caution: changing this risks breaking your existing client
++ * applications, which are likely to continue to look in the old
++ * directory.  But if you just hate the idea of sockets in /tmp,
++ * here's where to twiddle it.  You can also override this at runtime
++ * with the postmaster's -k switch.
++ *
++ * If set to an empty string, then AF_UNIX sockets are not used by default: A
++ * server will not create an AF_UNIX socket unless the run-time configuration
++ * is changed, a client will connect via TCP/IP by default and will only use
++ * an AF_UNIX socket if one is explicitly specified.
++ *
++ * This is done by default on Windows because there is no good standard
++ * location for AF_UNIX sockets and many installations on Windows don't
++ * support them yet.
++ */
++#ifndef WIN32
++#define DEFAULT_PGSOCKET_DIR  "/run/postgresql"
++#else
++#define DEFAULT_PGSOCKET_DIR ""
++#endif
++
++/*
++ * This is the default event source for Windows event log.
++ */
++#define DEFAULT_EVENT_SOURCE  "PostgreSQL"
++
++/*
++ * Assumed cache line size.  This doesn't affect correctness, but can be used
++ * for low-level optimizations.  This is mostly used to pad various data
++ * structures, to ensure that highly-contended fields are on different cache
++ * lines.  Too small a value can hurt performance due to false sharing, while
++ * the only downside of too large a value is a few bytes of wasted memory.
++ * The default is 128, which should be large enough for all supported
++ * platforms.
++ */
++#define PG_CACHE_LINE_SIZE		128
++
++/*
++ * Assumed alignment requirement for direct I/O.  4K corresponds to common
++ * sector and memory page size.
++ */
++#define PG_IO_ALIGN_SIZE		4096
++
++/*
++ *------------------------------------------------------------------------
++ * The following symbols are for enabling debugging code, not for
++ * controlling user-visible features or resource limits.
++ *------------------------------------------------------------------------
++ */
++
++/*
++ * Force use of the non-recursive JSON parser in all cases. This is useful
++ * to validate the working of the parser, and the regression tests should
++ * pass except for some different error messages about the stack limit.
++ */
++/* #define FORCE_JSON_PSTACK */
++
++/*
++ * Include Valgrind "client requests", mostly in the memory allocator, so
++ * Valgrind understands PostgreSQL memory contexts.  This permits detecting
++ * memory errors that Valgrind would not detect on a vanilla build.  It also
++ * enables detection of buffer accesses that take place without holding a
++ * buffer pin (or without holding a buffer lock in the case of index access
++ * methods that superimpose their own custom client requests on top of the
++ * generic bufmgr.c requests).
++ *
++ * "make installcheck" is significantly slower under Valgrind.  The client
++ * requests fall in hot code paths, so USE_VALGRIND slows execution by a few
++ * percentage points even when not run under Valgrind.
++ *
++ * Do not try to test the server under Valgrind without having built the
++ * server with USE_VALGRIND; else you will get false positives from sinval
++ * messaging (see comments in AddCatcacheInvalidationMessage).  It's also
++ * important to use the suppression file src/tools/valgrind.supp to
++ * exclude other known false positives.
++ *
++ * You should normally use MEMORY_CONTEXT_CHECKING with USE_VALGRIND;
++ * instrumentation of repalloc() is inferior without it.
++ */
++/* #define USE_VALGRIND */
++
++/*
++ * Define this to cause pfree()'d memory to be cleared immediately, to
++ * facilitate catching bugs that refer to already-freed values.
++ * Right now, this gets defined automatically if --enable-cassert.
++ */
++#ifdef USE_ASSERT_CHECKING
++#define CLOBBER_FREED_MEMORY
++#endif
++
++/*
++ * Define this to check memory allocation errors (scribbling on more
++ * bytes than were allocated).  Right now, this gets defined
++ * automatically if --enable-cassert or USE_VALGRIND.
++ */
++#if defined(USE_ASSERT_CHECKING) || defined(USE_VALGRIND)
++#define MEMORY_CONTEXT_CHECKING
++#endif
++
++/*
++ * Define this to cause palloc()'d memory to be filled with random data, to
++ * facilitate catching code that depends on the contents of uninitialized
++ * memory.  Caution: this is horrendously expensive.
++ */
++/* #define RANDOMIZE_ALLOCATED_MEMORY */
++
++/*
++ * For cache-invalidation debugging, define DISCARD_CACHES_ENABLED to enable
++ * use of the debug_discard_caches GUC to aggressively flush syscache/relcache
++ * entries whenever it's possible to deliver invalidations.  See
++ * AcceptInvalidationMessages() in src/backend/utils/cache/inval.c for
++ * details.
++ *
++ * USE_ASSERT_CHECKING builds default to enabling this.  It's possible to use
++ * DISCARD_CACHES_ENABLED without a cassert build and the implied
++ * CLOBBER_FREED_MEMORY and MEMORY_CONTEXT_CHECKING options, but it's unlikely
++ * to be as effective at identifying problems.
++ */
++/* #define DISCARD_CACHES_ENABLED */
++
++#if defined(USE_ASSERT_CHECKING) && !defined(DISCARD_CACHES_ENABLED)
++#define DISCARD_CACHES_ENABLED
++#endif
++
++/*
++ * Backwards compatibility for the older compile-time-only clobber-cache
++ * macros.
++ */
++#if !defined(DISCARD_CACHES_ENABLED) && (defined(CLOBBER_CACHE_ALWAYS) || defined(CLOBBER_CACHE_RECURSIVELY))
++#define DISCARD_CACHES_ENABLED
++#endif
++
++/*
++ * Recover memory used for relcache entries when invalidated.  See
++ * RelationBuildDesc() in src/backend/utils/cache/relcache.c.
++ *
++ * This is active automatically for clobber-cache builds when clobbering is
++ * active, but can be overridden here by explicitly defining
++ * RECOVER_RELATION_BUILD_MEMORY.  Define to 1 to always free relation cache
++ * memory even when clobber is off, or to 0 to never free relation cache
++ * memory even when clobbering is on.
++ */
++ /* #define RECOVER_RELATION_BUILD_MEMORY 0 */	/* Force disable */
++ /* #define RECOVER_RELATION_BUILD_MEMORY 1 */	/* Force enable */
++
++/*
++ * Define this to force all parse and plan trees to be passed through
++ * copyObject(), to facilitate catching errors and omissions in
++ * copyObject().
++ */
++/* #define COPY_PARSE_PLAN_TREES */
++
++/*
++ * Define this to force Bitmapset reallocation on each modification.  Helps
++ * to find dangling pointers to Bitmapset's.
++ */
++/* #define REALLOCATE_BITMAPSETS */
++
++/*
++ * Define this to force all parse and plan trees to be passed through
++ * outfuncs.c/readfuncs.c, to facilitate catching errors and omissions in
++ * those modules.
++ */
++/* #define WRITE_READ_PARSE_PLAN_TREES */
++
++/*
++ * Define this to force all raw parse trees for DML statements to be scanned
++ * by raw_expression_tree_walker(), to facilitate catching errors and
++ * omissions in that function.
++ */
++/* #define RAW_EXPRESSION_COVERAGE_TEST */
++
++/*
++ * Enable debugging print statements for lock-related operations.
++ */
++/* #define LOCK_DEBUG */
++
++/*
++ * Enable debugging print statements for WAL-related operations; see
++ * also the wal_debug GUC var.
++ */
++/* #define WAL_DEBUG */
++
++/*
++ * Enable tracing of resource consumption during sort operations;
++ * see also the trace_sort GUC var.  For 8.1 this is enabled by default.
++ */
++#define TRACE_SORT 1
++
++/*
++ * Enable tracing of syncscan operations (see also the trace_syncscan GUC var).
++ */
++/* #define TRACE_SYNCSCAN */
+diff --git a/pg_config_os.h b/pg_config_os.h
+new file mode 100644
+index 0000000..8101af2
+--- /dev/null
++++ b/pg_config_os.h
+@@ -0,0 +1,22 @@
++/* src/include/port/linux.h */
++
++/*
++ * As of July 2007, all known versions of the Linux kernel will sometimes
++ * return EIDRM for a shmctl() operation when EINVAL is correct (it happens
++ * when the low-order 15 bits of the supplied shm ID match the slot number
++ * assigned to a newer shmem segment).  We deal with this by assuming that
++ * EIDRM means EINVAL in PGSharedMemoryIsInUse().  This is reasonably safe
++ * since in fact Linux has no excuse for ever returning EIDRM; it doesn't
++ * track removed segments in a way that would allow distinguishing them from
++ * private ones.  But someday that code might get upgraded, and we'd have
++ * to have a kernel version test here.
++ */
++#define HAVE_LINUX_EIDRM_BUG
++
++/*
++ * Set the default wal_sync_method to fdatasync.  With recent Linux versions,
++ * xlogdefs.h's normal rules will prefer open_datasync, which (a) doesn't
++ * perform better and (b) causes outright failures on ext4 data=journal
++ * filesystems, because those don't support O_DIRECT.
++ */
++#define PLATFORM_DEFAULT_WAL_SYNC_METHOD	WAL_SYNC_METHOD_FDATASYNC
+diff --git a/pg_config_paths.h b/pg_config_paths.h
+new file mode 100644
+index 0000000..2b29948
+--- /dev/null
++++ b/pg_config_paths.h
+@@ -0,0 +1,12 @@
++#define PGBINDIR "/usr/bin"
++#define PGSHAREDIR "/usr/share/postgresql"
++#define SYSCONFDIR "/etc/postgresql"
++#define INCLUDEDIR "/usr/include"
++#define PKGINCLUDEDIR "/usr/include/postgresql"
++#define INCLUDEDIRSERVER "/usr/include/postgresql/server"
++#define LIBDIR "/usr/lib"
++#define PKGLIBDIR "/usr/lib/postgresql"
++#define LOCALEDIR "/usr/share/locale"
++#define DOCDIR "/usr/share/doc//postgresql"
++#define HTMLDIR "/usr/share/doc//postgresql"
++#define MANDIR "/usr/share/man"
+diff --git a/pgtypes.h b/pgtypes.h
+new file mode 100644
+index 0000000..dbf759b
+--- /dev/null
++++ b/pgtypes.h
+@@ -0,0 +1,17 @@
++/* src/interfaces/ecpg/include/pgtypes.h */
++
++#ifndef PGTYPES_H
++#define PGTYPES_H
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif
++
++extern void PGTYPESchar_free(char *ptr);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif							/* PGTYPES_H */
+diff --git a/pgtypes_date.h b/pgtypes_date.h
+new file mode 100644
+index 0000000..5490cf8
+--- /dev/null
++++ b/pgtypes_date.h
+@@ -0,0 +1,32 @@
++/* src/interfaces/ecpg/include/pgtypes_date.h */
++
++#ifndef PGTYPES_DATETIME
++#define PGTYPES_DATETIME
++
++#include <pgtypes.h>
++#include <pgtypes_timestamp.h>
++
++typedef long date;
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif
++
++extern date * PGTYPESdate_new(void);
++extern void PGTYPESdate_free(date * d);
++extern date PGTYPESdate_from_asc(char *str, char **endptr);
++extern char *PGTYPESdate_to_asc(date dDate);
++extern date PGTYPESdate_from_timestamp(timestamp dt);
++extern void PGTYPESdate_julmdy(date jd, int *mdy);
++extern void PGTYPESdate_mdyjul(int *mdy, date * jdate);
++extern int	PGTYPESdate_dayofweek(date dDate);
++extern void PGTYPESdate_today(date * d);
++extern int	PGTYPESdate_defmt_asc(date * d, const char *fmt, const char *str);
++extern int	PGTYPESdate_fmt_asc(date dDate, const char *fmtstring, char *outbuf);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif							/* PGTYPES_DATETIME */
+diff --git a/pgtypes_error.h b/pgtypes_error.h
+new file mode 100644
+index 0000000..9fc22a2
+--- /dev/null
++++ b/pgtypes_error.h
+@@ -0,0 +1,18 @@
++/* src/interfaces/ecpg/include/pgtypes_error.h */
++
++#define PGTYPES_NUM_OVERFLOW		301
++#define PGTYPES_NUM_BAD_NUMERIC		302
++#define PGTYPES_NUM_DIVIDE_ZERO		303
++#define PGTYPES_NUM_UNDERFLOW		304
++
++#define PGTYPES_DATE_BAD_DATE		310
++#define PGTYPES_DATE_ERR_EARGS		311
++#define PGTYPES_DATE_ERR_ENOSHORTDATE	312
++#define PGTYPES_DATE_ERR_ENOTDMY	313
++#define PGTYPES_DATE_BAD_DAY		314
++#define PGTYPES_DATE_BAD_MONTH		315
++
++#define PGTYPES_TS_BAD_TIMESTAMP	320
++#define PGTYPES_TS_ERR_EINFTIME		321
++
++#define PGTYPES_INTVL_BAD_INTERVAL	330
+diff --git a/pgtypes_interval.h b/pgtypes_interval.h
+new file mode 100644
+index 0000000..2809b35
+--- /dev/null
++++ b/pgtypes_interval.h
+@@ -0,0 +1,48 @@
++/* src/interfaces/ecpg/include/pgtypes_interval.h */
++
++#ifndef PGTYPES_INTERVAL
++#define PGTYPES_INTERVAL
++
++#include <ecpg_config.h>
++#include <pgtypes.h>
++
++#ifndef C_H
++
++#ifdef HAVE_LONG_INT_64
++#ifndef HAVE_INT64
++typedef long int int64;
++#endif
++#elif defined(HAVE_LONG_LONG_INT_64)
++#ifndef HAVE_INT64
++typedef long long int int64;
++#endif
++#else
++/* neither HAVE_LONG_INT_64 nor HAVE_LONG_LONG_INT_64 */
++#error must have a working 64-bit integer datatype
++#endif
++
++#define HAVE_INT64_TIMESTAMP
++#endif							/* C_H */
++
++typedef struct
++{
++	int64		time;			/* all time units other than months and years */
++	long		month;			/* months and years, after time for alignment */
++}			interval;
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif
++
++extern interval * PGTYPESinterval_new(void);
++extern void PGTYPESinterval_free(interval * intvl);
++extern interval * PGTYPESinterval_from_asc(char *str, char **endptr);
++extern char *PGTYPESinterval_to_asc(interval * span);
++extern int	PGTYPESinterval_copy(interval * intvlsrc, interval * intvldest);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif							/* PGTYPES_INTERVAL */
+diff --git a/pgtypes_numeric.h b/pgtypes_numeric.h
+new file mode 100644
+index 0000000..61506f4
+--- /dev/null
++++ b/pgtypes_numeric.h
+@@ -0,0 +1,69 @@
++#ifndef PGTYPES_NUMERIC
++#define PGTYPES_NUMERIC
++
++#include <pgtypes.h>
++
++#define NUMERIC_POS						0x0000
++#define NUMERIC_NEG						0x4000
++#define NUMERIC_NAN						0xC000
++#define NUMERIC_NULL						0xF000
++#define NUMERIC_MAX_PRECISION			1000
++#define NUMERIC_MAX_DISPLAY_SCALE		NUMERIC_MAX_PRECISION
++#define NUMERIC_MIN_DISPLAY_SCALE		0
++#define NUMERIC_MIN_SIG_DIGITS			16
++
++#define DECSIZE 30
++
++typedef unsigned char NumericDigit;
++typedef struct
++{
++	int			ndigits;		/* number of digits in digits[] - can be 0! */
++	int			weight;			/* weight of first digit */
++	int			rscale;			/* result scale */
++	int			dscale;			/* display scale */
++	int			sign;			/* NUMERIC_POS, NUMERIC_NEG, or NUMERIC_NAN */
++	NumericDigit *buf;			/* start of alloc'd space for digits[] */
++	NumericDigit *digits;		/* decimal digits */
++} numeric;
++
++typedef struct
++{
++	int			ndigits;		/* number of digits in digits[] - can be 0! */
++	int			weight;			/* weight of first digit */
++	int			rscale;			/* result scale */
++	int			dscale;			/* display scale */
++	int			sign;			/* NUMERIC_POS, NUMERIC_NEG, or NUMERIC_NAN */
++	NumericDigit digits[DECSIZE];	/* decimal digits */
++} decimal;
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif
++
++numeric    *PGTYPESnumeric_new(void);
++decimal    *PGTYPESdecimal_new(void);
++void		PGTYPESnumeric_free(numeric *var);
++void		PGTYPESdecimal_free(decimal *var);
++numeric    *PGTYPESnumeric_from_asc(char *str, char **endptr);
++char	   *PGTYPESnumeric_to_asc(numeric *num, int dscale);
++int			PGTYPESnumeric_add(numeric *var1, numeric *var2, numeric *result);
++int			PGTYPESnumeric_sub(numeric *var1, numeric *var2, numeric *result);
++int			PGTYPESnumeric_mul(numeric *var1, numeric *var2, numeric *result);
++int			PGTYPESnumeric_div(numeric *var1, numeric *var2, numeric *result);
++int			PGTYPESnumeric_cmp(numeric *var1, numeric *var2);
++int			PGTYPESnumeric_from_int(signed int int_val, numeric *var);
++int			PGTYPESnumeric_from_long(signed long int long_val, numeric *var);
++int			PGTYPESnumeric_copy(numeric *src, numeric *dst);
++int			PGTYPESnumeric_from_double(double d, numeric *dst);
++int			PGTYPESnumeric_to_double(numeric *nv, double *dp);
++int			PGTYPESnumeric_to_int(numeric *nv, int *ip);
++int			PGTYPESnumeric_to_long(numeric *nv, long *lp);
++int			PGTYPESnumeric_to_decimal(numeric *src, decimal *dst);
++int			PGTYPESnumeric_from_decimal(decimal *src, numeric *dst);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif							/* PGTYPES_NUMERIC */
+diff --git a/pgtypes_timestamp.h b/pgtypes_timestamp.h
+new file mode 100644
+index 0000000..412ecc2
+--- /dev/null
++++ b/pgtypes_timestamp.h
+@@ -0,0 +1,31 @@
++/* src/interfaces/ecpg/include/pgtypes_timestamp.h */
++
++#ifndef PGTYPES_TIMESTAMP
++#define PGTYPES_TIMESTAMP
++
++#include <pgtypes.h>
++/* pgtypes_interval.h includes ecpg_config.h */
++#include <pgtypes_interval.h>
++
++typedef int64 timestamp;
++typedef int64 TimestampTz;
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif
++
++extern timestamp PGTYPEStimestamp_from_asc(char *str, char **endptr);
++extern char *PGTYPEStimestamp_to_asc(timestamp tstamp);
++extern int	PGTYPEStimestamp_sub(timestamp * ts1, timestamp * ts2, interval * iv);
++extern int	PGTYPEStimestamp_fmt_asc(timestamp * ts, char *output, int str_len, const char *fmtstr);
++extern void PGTYPEStimestamp_current(timestamp * ts);
++extern int	PGTYPEStimestamp_defmt_asc(const char *str, const char *fmt, timestamp * d);
++extern int	PGTYPEStimestamp_add_interval(timestamp * tin, interval * span, timestamp * tout);
++extern int	PGTYPEStimestamp_sub_interval(timestamp * tin, interval * span, timestamp * tout);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif							/* PGTYPES_TIMESTAMP */
+diff --git a/src/Makefile.global.in b/src/Makefile.global.in
+index a00c909..4055116 100644
+--- a/src/Makefile.global.in
++++ b/src/Makefile.global.in
+@@ -828,7 +828,7 @@ $(top_builddir)/src/Makefile.global: $(top_srcdir)/src/Makefile.global.in $(top_
+ #
+ # Of course you need to turn on dependency tracking to get any
+ # dependencies on pg_config.h.
+-$(top_builddir)/src/include/pg_config.h: $(top_builddir)/src/include/stamp-h ;
++#$(top_builddir)/src/include/pg_config.h: $(top_builddir)/src/include/stamp-h ;
+ 
+ $(top_builddir)/src/include/stamp-h: $(top_srcdir)/src/include/pg_config.h.in $(top_builddir)/config.status
+ 	cd $(top_builddir) && ./config.status src/include/pg_config.h
+diff --git a/src/common/Makefile b/src/common/Makefile
+index 3d83299..4495755 100644
+--- a/src/common/Makefile
++++ b/src/common/Makefile
+@@ -40,7 +40,7 @@ override CPPFLAGS += -DVAL_LDFLAGS_EX="\"$(LDFLAGS_EX)\""
+ override CPPFLAGS += -DVAL_LDFLAGS_SL="\"$(LDFLAGS_SL)\""
+ override CPPFLAGS += -DVAL_LIBS="\"$(LIBS)\""
+ 
+-override CPPFLAGS := -DFRONTEND -I. -I$(top_srcdir)/src/common $(CPPFLAGS)
++override CPPFLAGS := -DFRONTEND -I. -I$(top_builddir) -I$(top_srcdir)/src/common $(CPPFLAGS)
+ LIBS += $(PTHREAD_LIBS)
+ 
+ OBJS_COMMON = \
+diff --git a/src/include/pg_config_manual.h b/src/include/pg_config_manual.h
+index f941ee2..3bbf836 100644
+--- a/src/include/pg_config_manual.h
++++ b/src/include/pg_config_manual.h
+@@ -206,7 +206,7 @@
+  * support them yet.
+  */
+ #ifndef WIN32
+-#define DEFAULT_PGSOCKET_DIR  "/tmp"
++#define DEFAULT_PGSOCKET_DIR  "/run/postgresql"
+ #else
+ #define DEFAULT_PGSOCKET_DIR ""
+ #endif
+diff --git a/src/interfaces/libpq/Makefile b/src/interfaces/libpq/Makefile
+index b36a765..2020f9f 100644
+--- a/src/interfaces/libpq/Makefile
++++ b/src/interfaces/libpq/Makefile
+@@ -22,7 +22,7 @@ NAME= pq
+ SO_MAJOR_VERSION= 5
+ SO_MINOR_VERSION= $(MAJORVERSION)
+ 
+-override CPPFLAGS :=  -I$(srcdir) $(CPPFLAGS) -I$(top_builddir)/src/port -I$(top_srcdir)/src/port
++override CPPFLAGS :=  -I$(srcdir) $(CPPFLAGS) -I$(top_srcdir) -I$(top_builddir)/src/port -I$(top_srcdir)/src/port
+ ifneq ($(PORTNAME), win32)
+ override CFLAGS += $(PTHREAD_CFLAGS)
+ endif
+diff --git a/src/port/Makefile b/src/port/Makefile
+index db7c021..28aecc3 100644
+--- a/src/port/Makefile
++++ b/src/port/Makefile
+@@ -32,7 +32,7 @@ subdir = src/port
+ top_builddir = ../..
+ include $(top_builddir)/src/Makefile.global
+ 
+-override CPPFLAGS := -I$(top_builddir)/src/port -DFRONTEND $(CPPFLAGS)
++override CPPFLAGS := -I$(top_builddir)/src/port -I$(top_builddir) -DFRONTEND $(CPPFLAGS)
+ LIBS += $(PTHREAD_LIBS)
+ 
+ OBJS = \

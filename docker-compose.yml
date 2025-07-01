@@ -8,5 +8,34 @@ services:
           - POSTGRES_PASSWORD=1234
         ports:
           - 5432:5432
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready", "-d", "pg_repomanage"]
+          interval: 5s
+          timeout: 1s
+          retries: 20
         volumes:
           - ./.repo_pgdata:/var/lib/postgresql/data
+        networks:
+          - postgres
+
+    api-postgresql-service:
+        build: ./api-service
+        container_name: api-postgresql-service
+        environment:
+          # Unlike "nproc" and this method considers container limits
+          # and may return fractional values.
+          - CPU_LIMIT=1.95c
+        ports:
+          - 5862:5862
+        restart: on-failure
+        depends_on:
+          repo-postgres:
+            condition: service_healthy
+        links:
+          - repo-postgres
+        networks:
+          - postgres
+
+networks:
+    postgres:
+        driver: bridge

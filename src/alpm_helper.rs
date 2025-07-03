@@ -13,12 +13,15 @@ struct RepoData {
     repo_server: String,
 }
 
-fn init_alpm(pacman_path: &str, repo_list: &[RepoData]) -> Result<Alpm> {
+fn init_alpm(pacman_path: &str, repo_list: &[RepoData], is_files_repo: bool) -> Result<Alpm> {
     let pacman_db_path = format!("{pacman_path}/db");
     // make sure that it exists, create overwise
     fs::create_dir_all(&pacman_db_path)?;
 
     let mut handle = Alpm::new(pacman_path, &pacman_db_path)?;
+    if is_files_repo {
+        handle.set_dbext(".files");
+    }
 
     // add our repos
     for repo_data in repo_list {
@@ -35,7 +38,7 @@ fn init_alpm(pacman_path: &str, repo_list: &[RepoData]) -> Result<Alpm> {
     Ok(handle)
 }
 
-fn init_profile_repo(repo_filepath: &str) -> Result<Alpm> {
+fn init_profile_repo_ext(repo_filepath: &str, is_files_repo: bool) -> Result<Alpm> {
     let temp_dir = utils::create_temporary_directory(None).expect("Failed to create temp dir");
 
     let repo_dir =
@@ -45,7 +48,11 @@ fn init_profile_repo(repo_filepath: &str) -> Result<Alpm> {
     let repo_db_prefix = pkg_utils::get_repo_db_prefix(repo_filepath);
 
     let repo_list = vec![RepoData { repo_name: repo_db_prefix, repo_server: repo_url }];
-    init_alpm(&temp_dir, &repo_list)
+    init_alpm(&temp_dir, &repo_list, is_files_repo)
+}
+
+fn init_profile_repo(repo_filepath: &str) -> Result<Alpm> {
+    init_profile_repo_ext(repo_filepath, false)
 }
 
 pub fn exclude_existing_pkgs(
@@ -260,7 +267,8 @@ pub async fn populate_repo_to_db(
     repo_db_path: &str,
     postgres_helper: &PostgresqlHelper,
 ) -> Result<()> {
-    let alpm_handle = init_profile_repo(repo_db_path).context("Failed to init alpm for the db")?;
+    let alpm_handle =
+        init_profile_repo_ext(repo_db_path, true).context("Failed to init alpm for the db")?;
 
     // Ensure the repository is registered
     let repo_name = pkg_utils::get_repo_db_prefix(repo_db_path);
@@ -308,7 +316,8 @@ pub async fn add_pkgs_to_db(
     postgres_helper: &PostgresqlHelper,
     new_pkgs: &[String],
 ) -> Result<()> {
-    let alpm_handle = init_profile_repo(repo_db_path).context("Failed to init alpm for the db")?;
+    let alpm_handle =
+        init_profile_repo_ext(repo_db_path, true).context("Failed to init alpm for the db")?;
 
     // Ensure the repository is registered
     let repo_name = pkg_utils::get_repo_db_prefix(repo_db_path);

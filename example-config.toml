@@ -1,102 +1,153 @@
-# example configuration
+# -----------------------------------------------------------------------------
+# repo-manage-util -- Example Configuration
+#
+# This file provides a detailed example of how to configure the repository
+# management utility. The configuration is written in TOML format.
+#
+# You can copy this file to `~/.config/repo-manage-util/config.toml` or
+# specify a path using the --config command-line argument.
+# -----------------------------------------------------------------------------
 
-# the config is very similar to repoctl config
-
-# postgresql integration
+# [Optional] PostgreSQL Integration
+#
+# Enables integration with a PostgreSQL database to store and query package
+# information. This is highly recommended for advanced repository management,
+# historical tracking, and for using the accompanying API service.
+#
+# The URL must be in the following format:
+# postgresql://<user>:<password>@<host>:<port>/<database_name>
+#
 postgresql_url = "postgresql://user:1234@localhost:5432/pg_repomanage"
 
+
+# -----------------------------------------------------------------------------
+# Profile-Based Repository Management
+#
+# The `[profiles]` section allows you to define multiple repository
+# configurations, each identified by a unique profile name (e.g., "repof").
+# This is useful for managing different repositories (e.g., stable, testing)
+# from a single configuration file.
+# -----------------------------------------------------------------------------
+
 [profiles.repof]
-  # Full path to the repo
+  # [Required] Full path to the repository's database file.
+  # The utility assumes that package files (*.pkg.tar.zst) are located in the
+  # same directory as this database file.
+  # Example: "/srv/http/archlinux/x86_64/myrepo.db.tar.zst"
   repo = "/home/testuser/repos/x86_64/os/repof/repof.db.tar.zst"
 
-  # add_params is the set of parameters that will be passed to repo-add
-  # uncomment/remove to use default value
+  # [Optional] Custom parameters for the `repo-add` command.
+  # These flags are passed directly to `repo-add` when adding packages.
+  # Default: ["--sign", "--include-sigs", "--verify"]
   add_params = ["--sign", "--include-sigs"]
 
-  # rm_params is the set of parameters that will be passed to repo-remove
-  # uncomment/remove to use default value
+  # [Optional] Custom parameters for the `repo-remove` command.
+  # These flags are passed directly to `repo-remove` when removing packages.
+  # Default: ["--sign"]
   rm_params = ["--sign"]
 
   # ignore_aur is a set of package names that are ignored in conjunction
   # TODO: implement AUR functionality
   #ignore_aur = ["imaginable-pkg"]
 
-  # require_signature prevents packages from being added that do not
-  # also have a signature file.
+
+  # [Optional] Prevent packages without a corresponding signature file (.sig)
+  # from being added to the repository. This enhances security by ensuring
+  # all packages are signed.
+  # Default: true
   require_signature = true
 
-  # backup specifies whether package files should be backed up or deleted.
-  # If it is set to false, then obsolete package files are deleted.
+  # [Optional] Enable or disable backing up of older package files when a
+  # new version is added.
+  # If `true`, old packages are moved to the `backup_dir`.
+  # If `false`, old packages are permanently deleted.
+  # Default: false
   backup = true
 
-  # backup_dir specifies which directory backups are stored in.
-  # - If a relative path is given, then it is interpreted as relative to
-  #   the repository directory.
-  # - If the path here resolves to the same as repo, then obsolete packages
-  #   are effectively ignored by repoctl, if backup is true.
+  # [Optional] Directory to store backed-up packages.
+  # - If an absolute path is given (e.g., "/var/backups/myrepo"), backups are
+  #   stored there.
+  # - If a relative path is given (e.g., "backup"), it is relative to the
+  #   directory containing the repository database.
   backup_dir = "/home/testuser/backup_repos/repof"
 
-  # debug_dir specifies which directory with debug package to be stored.
-  # Expects full path
+  # [Optional] Directory to store debug packages.
+  # This requires an absolute path.
   debug_dir = "/home/testuser/debug_repos/repof"
 
-  # backup_num specifies how many packages should be backed up.
-  # If it is not set, then unlimited amount allowed.
-  #backup_num = 2
+  # [Optional] Number of old package versions to keep in the backup directory.
+  # If commented out or not set, an unlimited number of backups will be kept.
+  # backup_num = 2
 
-  # interactive specifies that repoctl should ask before doing anything
-  # destructive.
+  # [Optional] If `true`, the utility will prompt for confirmation before
+  # executing any destructive operations like removing or replacing packages.
+  # Default: false
   interactive = false
 
-  # reference repo is the full path to the local repo to compare our profile repo against,
-  # copies packages from in case update available
+  # [Optional] Full path to a local reference repository database.
+  # This allows the utility to compare your repository against another one
+  # (e.g., a local mirror of an official Arch Linux repository).
+  # If a package in the reference repository is newer than the one in your
+  # profile's repository, it can be automatically copied over.
   reference_repo = "/home/testanotheruser/repos/reposecond-super/reposecond-super.db.tar.zst"
 
 [profiles.reposecond]
-  # repo is the full path to the repository that will be managed by repoctl.
-  # The packages that belong to the repository are assumed to lie in the
-  # same folder.
+  # [Required] Full path to the repository's database file.
+  # The utility assumes that package files (*.pkg.tar.zst) are located in the
+  # same directory as this database file.
+  # Example: "/srv/http/archlinux/x86_64/myrepo.db.tar.zst"
   repo = "/home/testuser/repos/x86_64/os/reposecond/reposecond.db.tar.zst"
 
-  # add_params is the set of parameters that will be passed to repo-add
-  # uncomment/remove to use default value
+  # [Optional] Custom parameters for the `repo-add` command.
+  # These flags are passed directly to `repo-add` when adding packages.
+  # Default: ["--sign", "--include-sigs", "--verify"]
   add_params = ["--sign", "--include-sigs"]
 
-  # rm_params is the set of parameters that will be passed to repo-remove
-  # uncomment/remove to use default value
+  # [Optional] Custom parameters for the `repo-remove` command.
+  # These flags are passed directly to `repo-remove` when removing packages.
+  # Default: ["--sign"]
   rm_params = ["--sign"]
 
   # ignore_aur is a set of package names that are ignored in conjunction
   # TODO: implement AUR functionality
   #ignore_aur = ["imaginable-pkg"]
 
-  # require_signature prevents packages from being added that do not
-  # also have a signature file.
+  # [Optional] Prevent packages without a corresponding signature file (.sig)
+  # from being added to the repository. This enhances security by ensuring
+  # all packages are signed.
+  # Default: true
   require_signature = true
 
-  # backup specifies whether package files should be backed up or deleted.
-  # If it is set to false, then obsolete package files are deleted.
+  # [Optional] Enable or disable backing up of older package files when a
+  # new version is added.
+  # If `true`, old packages are moved to the `backup_dir`.
+  # If `false`, old packages are permanently deleted.
+  # Default: false
   backup = true
 
-  # backup_dir specifies which directory backups are stored in.
-  # - If a relative path is given, then it is interpreted as relative to
-  #   the repository directory.
-  # - If the path here resolves to the same as repo, then obsolete packages
-  #   are effectively ignored by repoctl, if backup is true.
+  # [Optional] Directory to store backed-up packages.
+  # - If an absolute path is given (e.g., "/var/backups/myrepo"), backups are
+  #   stored there.
+  # - If a relative path is given (e.g., "backup"), it is relative to the
+  #   directory containing the repository database.
   backup_dir = "/home/testuser/backup_repos/reposecond"
 
-  # debug_dir specifies which directory with debug package to be stored.
-  # Expects full path
+  # [Optional] Directory to store debug packages.
+  # This requires an absolute path.
   debug_dir = "/home/testuser/debug_repos/reposecond"
 
-  # backup_num specifies how many packages should be backed up.
-  # If it is not set, then unlimited amount allowed.
-  #backup_num = 2
+  # [Optional] Number of old package versions to keep in the backup directory.
+  # If commented out or not set, an unlimited number of backups will be kept.
+  # backup_num = 2
 
-  # interactive specifies that repoctl should ask before doing anything
-  # destructive.
+  # [Optional] If `true`, the utility will prompt for confirmation before
+  # executing any destructive operations like removing or replacing packages.
+  # Default: false
   interactive = false
 
-  # reference repo is the full path to the local repo to compare our profile repo against,
-  # copies packages from in case update available
+  # [Optional] Full path to a local reference repository database.
+  # This allows the utility to compare your repository against another one
+  # (e.g., a local mirror of an official Arch Linux repository).
+  # If a package in the reference repository is newer than the one in your
+  # profile's repository, it can be automatically copied over.
   reference_repo = "/home/testanotheruser/repos/reposecond-super/reposecond-super.db.tar.zst"

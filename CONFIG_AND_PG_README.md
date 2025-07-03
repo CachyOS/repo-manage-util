@@ -108,4 +108,4 @@ The `api-service` provides RESTful endpoints to query the package data stored in
     *   `/api/v1/packages-search`: Search for packages.
     *   `/api/v1/package/{repo}/{arch}/{pkgname}`: Get detailed information for a specific package.
 
-You can explore the available endpoints by reviewing the swagger schema.
+You can explore the available endpoints by reviewing the swagger schema in the `api-service/swagger.yaml`.

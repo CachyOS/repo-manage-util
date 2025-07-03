@@ -1,0 +1,235 @@
+openapi: 3.0.3
+info:
+  title: repo-manage-util API
+  description: |-
+    A RESTful API to query package information from repositories managed by `repo-manage-util`.
+    This API provides endpoints to search for packages and retrieve detailed information about a specific package.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5862/api/v1
+paths:
+  /packages-search:
+    get:
+      summary: Search for packages
+      description: |-
+        Searches for packages across all repositories based on a query string.
+        Supports pagination and filtering by repository and architecture.
+      parameters:
+        - name: search
+          in: query
+          description: The search term to find packages by name or description.
+          required: false
+          schema:
+            type: string
+        - name: repo
+          in: query
+          description: A comma-separated list of repository names to filter by.
+          required: false
+          schema:
+            type: string
+            example: "my-repo-1,my-repo-2"
+        - name: arch
+          in: query
+          description: A comma-separated list of architectures to filter by.
+          required: false
+          schema:
+            type: string
+            example: "x86_64,aarch64"
+        - name: current_page
+          in: query
+          description: The page number to retrieve.
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          description: The number of packages to return per page.
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+      responses:
+        '200':
+          description: A successful response containing a list of packages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageSearchResponse'
+        '400':
+          description: Invalid input for `current_page` or `page_size`.
+  /package/{repo}/{arch}/{pkgname}:
+    get:
+      summary: Get package details
+      description: Retrieves detailed information for a specific package within a given repository and architecture.
+      parameters:
+        - name: repo
+          in: path
+          description: The name of the repository.
+          required: true
+          schema:
+            type: string
+            example: "my-stable-repo"
+        - name: arch
+          in: path
+          description: The architecture of the package.
+          required: true
+          schema:
+            type: string
+            example: "x86_64"
+        - name: pkgname
+          in: path
+          description: The name of the package.
+          required: true
+          schema:
+            type: string
+            example: "openssl"
+      responses:
+        '200':
+          description: A successful response containing the package details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  package:
+                    $ref: '#/components/schemas/PackageDetails'
+        '404':
+          description: The requested package was not found.
+
+components:
+  schemas:
+    PackageSearchResponse:
+      type: object
+      properties:
+        total_packages:
+          type: integer
+          format: int64
+          description: The total number of packages matching the search criteria.
+        total_pages:
+          type: integer
+          format: int64
+          description: The total number of pages available.
+        packages:
+          type: array
+          items:
+            $ref: '#/components/schemas/BriefPackage'
+    BriefPackage:
+      type: object
+      properties:
+        pkg_name:
+          type: string
+          description: The name of the package.
+        repo_name:
+          type: string
+          description: The name of the repository the package belongs to.
+        pkg_arch:
+          type: string
+          description: The architecture of the package.
+        pkg_version:
+          type: string
+          description: The version of the package.
+        pkg_desc:
+          type: string
+          description: A brief description of the package.
+        updated:
+          type: integer
+          format: int64
+          description: The timestamp (Unix epoch) when the package was last updated.
+    PackageDetails:
+      type: object
+      properties:
+        repo_name:
+          type: string
+        pkg_name:
+          type: string
+        pkg_version:
+          type: string
+        pkg_base:
+          type: string
+          nullable: true
+        pkg_desc:
+          type: string
+          nullable: true
+        pkg_groups:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_url:
+          type: string
+          nullable: true
+        pkg_license:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_arch:
+          type: string
+          nullable: true
+        pkg_builddate:
+          type: integer
+          format: int64
+          nullable: true
+        pkg_packager:
+          type: string
+          nullable: true
+        pkg_csize:
+          type: integer
+          format: int64
+          nullable: true
+        pkg_isize:
+          type: integer
+          format: int64
+          nullable: true
+        pkg_sha256sum:
+          type: string
+          nullable: true
+        pkg_pgpsig:
+          type: string
+          nullable: true
+        pkg_replaces:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_depends:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_optdepends:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_makedepends:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_checkdepends:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_conflicts:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_provides:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pkg_files:
+          type: array
+          items:
+            type: string
+          nullable: true
+        updated:
+          type: integer
+          format: int64

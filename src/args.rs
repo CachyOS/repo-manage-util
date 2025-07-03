@@ -15,7 +15,7 @@ pub(crate) struct Cli {
     #[arg(global = true, short, long)]
     to: Option<String>,
 
-    /// Flag to update only postgres DB
+    /// Flag to update only postgres DB for Reset command
     #[arg(global = true, short, long)]
     only_pg: bool,
 
@@ -29,7 +29,7 @@ pub(crate) struct SingleProfileCli {
     #[clap(from_global)]
     pub profile: String,
 
-    /// Flag to update only postgres DB
+    /// Flag to update only postgres DB for Reset command
     #[clap(from_global)]
     pub only_pg: bool,
 }

@@ -41,7 +41,8 @@ impl Db {
 
     /// Creates a new `Db` instance from an existing `PgPool`.
     ///
-    /// This is useful when you want to share a connection pool across different parts of your application.
+    /// This is useful when you want to share a connection pool across different parts of your
+    /// application.
     pub async fn connect_from_pgpool(pool: PgPool) -> Result<Self> {
         Ok(Db { pool })
     }
@@ -80,9 +81,8 @@ impl Db {
     /// # use pg_impl::{db::Db, error::Result, models::RepositoryInfo};
     /// # async fn run() -> Result<()> {
     /// # let db = Db::connect("...").await?;
-    /// let repo_info = Some(RepositoryInfo {
-    ///     repo_desc: Some("The main official repository.".to_string()),
-    /// });
+    /// let repo_info =
+    ///     Some(RepositoryInfo { repo_desc: Some("The main official repository.".to_string()) });
     /// let repo_id = db.insert_or_update_repository("core", repo_info).await?;
     /// println!("Repository 'core' has ID: {}", repo_id);
     /// # Ok(())
@@ -137,7 +137,11 @@ impl Db {
     /// # let db = Db::connect("...").await?;
     /// let repositories = db.get_all_repositories().await?;
     /// for repo in repositories {
-    ///     println!("- {}: {}", repo.repo_name.unwrap_or_default(), repo.repo_desc.unwrap_or_default());
+    ///     println!(
+    ///         "- {}: {}",
+    ///         repo.repo_name.unwrap_or_default(),
+    ///         repo.repo_desc.unwrap_or_default()
+    ///     );
     /// }
     /// # Ok(())
     /// # }
@@ -189,14 +193,16 @@ impl Db {
     ///     pkg_files: None,
     /// };
     ///
-    /// let pkg_id = db.insert_or_update_package(
-    ///     "core",
-    ///     "pacman",
-    ///     "6.0.2-7",
-    ///     "pacman-6.0.2-7-x86_64.pkg.tar.zst",
-    ///     metadata,
-    ///     dependencies
-    /// ).await?;
+    /// let pkg_id = db
+    ///     .insert_or_update_package(
+    ///         "core",
+    ///         "pacman",
+    ///         "6.0.2-7",
+    ///         "pacman-6.0.2-7-x86_64.pkg.tar.zst",
+    ///         metadata,
+    ///         dependencies,
+    ///     )
+    ///     .await?;
     /// println!("Package 'pacman' has ID: {pkg_id}");
     /// # Ok(())
     /// # }
@@ -375,7 +381,8 @@ impl Db {
     /// let results = db.search_packages("extra", "web server").await?;
     /// println!("Found packages matching 'web server':");
     /// for pkg in results {
-    ///     println!("- {} ({}): {}",
+    ///     println!(
+    ///         "- {} ({}): {}",
     ///         pkg.pkg_name.unwrap_or_default(),
     ///         pkg.pkg_version.unwrap_or_default(),
     ///         pkg.pkg_desc.unwrap_or_default()
@@ -424,7 +431,8 @@ impl Db {
         Ok(packages)
     }
 
-    /// Deletes old package versions, keeping a specified number of recent versions for each package.
+    /// Deletes old package versions, keeping a specified number of recent versions for each
+    /// package.
     ///
     /// Returns the total number of deleted package records.
     ///

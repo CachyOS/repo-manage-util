@@ -2,7 +2,8 @@ use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-/// Represents metadata for a package, mapped to the `helper_schema.package_metadata` composite type in PostgreSQL.
+/// Represents metadata for a package, mapped to the `helper_schema.package_metadata` composite type
+/// in PostgreSQL.
 #[derive(Debug, Clone, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "helper_schema.package_metadata")]
 pub struct PackageMetadata {
@@ -32,7 +33,8 @@ pub struct PackageMetadata {
     pub pkg_pgpsig: Option<String>,
 }
 
-/// Represents the dependencies of a package, mapped to the `helper_schema.package_dependencies` composite type in PostgreSQL.
+/// Represents the dependencies of a package, mapped to the `helper_schema.package_dependencies`
+/// composite type in PostgreSQL.
 #[derive(Debug, Clone, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "helper_schema.package_dependencies")]
 pub struct PackageDependencies {
@@ -54,7 +56,8 @@ pub struct PackageDependencies {
     pub pkg_files: Option<Vec<String>>,
 }
 
-/// Represents information about a repository, mapped to the `helper_schema.repository_info` composite type in PostgreSQL.
+/// Represents information about a repository, mapped to the `helper_schema.repository_info`
+/// composite type in PostgreSQL.
 ///
 /// This is used as an argument type for database functions.
 #[derive(Debug, Clone, PartialEq, sqlx::Type)]

@@ -1,0 +1,107 @@
+name: API Service Checks
+
+on:
+  push:
+    paths-ignore:
+    - '.github/ISSUE_TEMPLATE/**'
+    - 'src/**'
+    - 'pg_impl/**'
+    - '*.md'
+    - '*.sh'
+    - 'LICENSE'
+    branches:
+    - develop
+  pull_request:
+    branches:
+    - develop
+
+concurrency:
+  group: api-service-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CTEST_OUTPUT_ON_FAILURE: 1
+
+jobs:
+  cpp-linter-api-service:
+    name: Test API service build
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install deps
+        run: |
+          pacman -Syu --noconfirm \
+          cmake pkg-config ninja meson clang lld llvm libc++ python boost boost-libs libbsd tcl libxml2 util-linux zlib git sudo ccache \
+          python-virtualenv python-jinja python-voluptuous python-yaml crypto++ yaml-cpp c-ares http-parser libev libnghttp2 \
+          postgresql postgresql-libs
+        shell: bash
+
+      - name: Create builder user and install dependency
+        run: |
+          useradd -ms /bin/bash builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+          echo 'LANG=en_US.UTF-8\nLANG_ALL=en_US.UTF-8' > /etc/locale.conf
+          echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+          locale-gen
+
+          cd /tmp
+          sudo -u builder bash -c "git clone https://aur.archlinux.org/cctz.git && cd cctz && makepkg --rmdeps -sicf --cleanbuild --noconfirm --noprogressbar --nocheck"
+        shell: bash
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: "ccache-linter"
+          max-size: 512M
+
+      - name: Configure third-party
+        run: |
+          export AR=llvm-ar
+          export CC='ccache clang'
+          export CXX='ccache clang++'
+          export NM=llvm-nm
+          export RANLIB=llvm-ranlib
+
+          cd api-service
+          ./setup_libpq.py $PWD
+          ./setup_userver.py $PWD
+          cd ..
+        shell: bash
+
+      - name: Configure & Build
+        run: |
+          cd api-service
+          ./configure.sh -t=Debug -p=${{github.workspace}}/api-service/build --use_clang --enable_tests
+          ./build.sh
+        shell: bash
+
+      - name: Run API tests
+        run: |
+          sudo chown -R builder ${{github.workspace}}
+          cd ${{github.workspace}}/api-service/build/Debug/
+          ulimit -n 4096
+          sudo chown -R builder ..
+          sudo -u builder bash -c "ctest -V"
+        shell: bash
+
+      - name: Run clang-tidy
+        run: |
+          cd api-service
+          clang-tidy -p ${{github.workspace}}/api-service/build/Debug src/*.cpp
+        shell: bash
+
+  check_clang_format:
+    name: "Check API service C++ style"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run clang-format style check for C/C++/Protobuf programs.
+      uses: jidicula/clang-format-action@5cc331b319e3ad388e0e16ccae131363f0a82c37
+      with:
+        clang-format-version: '20'
+        check-path: 'api-service/src'
+

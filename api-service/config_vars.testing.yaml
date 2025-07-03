@@ -1,0 +1,10 @@
+logger-level: debug
+
+server-port: 5862
+
+testsuite-enabled: true
+enabled-without-testsuite: false
+
+db-connection: 'postgresql://testsuite@repo-postgres:15433/pg_repomanage'
+
+config-fallback: dynamic_config_fallback.json

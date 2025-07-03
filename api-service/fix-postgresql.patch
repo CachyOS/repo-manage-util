@@ -1,0 +1,153 @@
+diff --git a/cmake/UserverSetupEnvironment.cmake b/cmake/UserverSetupEnvironment.cmake
+index 1a2b3a741..8ca75ba2d 100644
+--- a/cmake/UserverSetupEnvironment.cmake
++++ b/cmake/UserverSetupEnvironment.cmake
+@@ -18,11 +18,6 @@ function(_userver_setup_environment_validate_impl)
+ endfunction()
+ 
+ function(_userver_setup_environment_impl)
+-  if(USERVER_IMPL_SETUP_ENV_WAS_RUN_FOR_THIS_DIR)
+-    return()
+-  endif()
+-  set(USERVER_IMPL_SETUP_ENV_WAS_RUN_FOR_THIS_DIR ON PARENT_SCOPE)
+-
+   get_property(USERVER_CMAKE_DIR GLOBAL PROPERTY userver_cmake_dir)
+ 
+   message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
+@@ -39,6 +34,11 @@ function(_userver_setup_environment_impl)
+     set(CMAKE_PREFIX_PATH "${CMAKE_BINARY_DIR}/package_stubs" ${CMAKE_PREFIX_PATH} PARENT_SCOPE)
+   endif()
+ 
++  if(USERVER_IMPL_SETUP_ENV_WAS_RUN_FOR_THIS_DIR)
++    return()
++  endif()
++  set(USERVER_IMPL_SETUP_ENV_WAS_RUN_FOR_THIS_DIR ON PARENT_SCOPE)
++
+   set(CMAKE_EXPORT_COMPILE_COMMANDS ON PARENT_SCOPE)
+   set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES} PARENT_SCOPE)
+   if(NOT DEFINED CMAKE_CXX_STANDARD)
+diff --git a/cmake/modules/FindPostgreSQLInternal.cmake b/cmake/modules/FindPostgreSQLInternal.cmake
+index 2b6c652e3..0552b2303 100644
+--- a/cmake/modules/FindPostgreSQLInternal.cmake
++++ b/cmake/modules/FindPostgreSQLInternal.cmake
+@@ -9,6 +9,7 @@ _userver_module_begin(
+ _userver_module_find_include(
+     NAMES postgres_fe.h
+     PATHS
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql
+     ${USERVER_PG_SERVER_INCLUDE_DIR}
+     /usr/include/postgresql/12/server
+     /usr/include/postgresql/13/server
+@@ -29,6 +30,7 @@ _userver_module_find_include(
+ _userver_module_find_include(
+     NAMES libpq-int.h
+     PATHS
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq
+     ${USERVER_PG_INCLUDE_DIR}/internal
+     ${USERVER_PG_INCLUDE_DIR}/postgresql/internal
+     /usr/local/include/postgresql/internal  # FreeBSD
+@@ -42,6 +44,7 @@ _userver_module_find_include(
+ _userver_module_find_include(
+     NAMES libpq-fe.h
+     PATHS
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq
+     ${USERVER_PG_INCLUDE_DIR}
+     /usr/local/include  # FreeBSD
+     /usr/local/pgsql/include    # postgresql: make install
+@@ -51,16 +54,20 @@ _userver_module_find_include(
+ )
+ 
+ _userver_module_find_library(
+-    NAMES libpq.a  # must be a static library as we use internal symbols
++    NAMES libpostgresql.a # must be a static library as we use internal symbols
+     PATHS
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/interfaces/libpq
+     ${USERVER_PG_LIBRARY_DIR}
+     /usr/local/lib  # FreeBSD
+     /usr/local/pgsql/lib    # postgresql: make install
+ )
+ 
+ _userver_module_find_library(
+-    NAMES libpgcommon.a
++    NAMES libpq.so
+     PATHS
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/interfaces/libpq
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/common
+     ${USERVER_PG_SERVER_LIBRARY_DIR}
+     ${USERVER_PG_LIBRARY_DIR}
+     /usr/lib/postgresql/12/lib
+@@ -78,6 +85,7 @@ _userver_module_find_library(
+ _userver_module_find_library(
+     NAMES libpgport.a
+     PATHS
++    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/port
+     ${USERVER_PG_SERVER_LIBRARY_DIR}
+     ${USERVER_PG_LIBRARY_DIR}
+     /usr/lib/postgresql/12/lib
+diff --git a/postgresql/pq-extra/CMakeLists.txt b/postgresql/pq-extra/CMakeLists.txt
+index c44dd37b5..93a7aa01a 100644
+--- a/postgresql/pq-extra/CMakeLists.txt
++++ b/postgresql/pq-extra/CMakeLists.txt
+@@ -17,6 +17,7 @@ target_link_libraries(${PROJECT_NAME}
+   PUBLIC
+     PostgreSQLInternal
+     userver-internal-compile-options
++    m
+ )
+ 
+ target_compile_options(
+@@ -33,6 +34,7 @@ try_compile(
+     ${PQ_EXTRA_SOURCES}
+   LINK_LIBRARIES
+     PostgreSQLInternal
++    m
+   OUTPUT_VARIABLE COMPILE_OUTPUT
+ )
+ 
+diff --git a/third_party/uboost_coro/CMakeLists.txt b/third_party/uboost_coro/CMakeLists.txt
+index 0da3da20c..e8748c755 100644
+--- a/third_party/uboost_coro/CMakeLists.txt
++++ b/third_party/uboost_coro/CMakeLists.txt
+@@ -82,7 +82,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE "-w") # no warnings
+ target_compile_definitions(${PROJECT_NAME} PRIVATE "BOOST_CONTEXT_SOURCE")
+ 
+ include(Sanitizers)
+-_userver_get_sanitize_options(SANITIZERS_LIST SANITIZE_COMPILE_FLAGS SANITIZE_LINK_FLAGS)
++#_userver_get_sanitize_options(SANITIZERS_LIST SANITIZE_COMPILE_FLAGS SANITIZE_LINK_FLAGS)
+ 
+ if ("addr" IN_LIST SANITIZERS_LIST)
+   target_compile_definitions(${PROJECT_NAME} PUBLIC "BOOST_USE_ASAN")
+diff --git a/universal/CMakeLists.txt b/universal/CMakeLists.txt
+index 264a18114..89f31b95e 100644
+--- a/universal/CMakeLists.txt
++++ b/universal/CMakeLists.txt
+@@ -9,7 +9,7 @@ if (TARGET userver-core)
+ endif()
+ 
+ include(Sanitizers)
+-_userver_make_sanitize_target()
++#_userver_make_sanitize_target()
+ 
+ file(GLOB_RECURSE SOURCES
+   ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+@@ -156,8 +156,8 @@ if (NOT USERVER_NO_WERROR)
+   target_compile_options(userver-internal-compile-options INTERFACE "-Werror")
+ endif()
+ 
+-_userver_install_targets(COMPONENT universal
+-  TARGETS userver-internal-sanitize-options userver-internal-compile-options)
++#_userver_install_targets(COMPONENT universal
++#  TARGETS userver-internal-sanitize-options userver-internal-compile-options)
+ 
+ # The library itself
+ add_library(${PROJECT_NAME} STATIC ${SOURCES})
+@@ -242,7 +242,7 @@ endif()
+ target_link_libraries(${PROJECT_NAME}
+   PUBLIC
+     Threads::Threads
+-    userver-internal-sanitize-options
++    #userver-internal-sanitize-options
+     userver-internal-compile-options
+   PRIVATE
+     Boost::filesystem

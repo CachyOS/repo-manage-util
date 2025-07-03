@@ -1,0 +1,81 @@
+config_vars: config_vars.yaml
+
+components_manager:
+    task_processors:                  # Task processor is an executor for coroutine tasks
+
+        main-task-processor:          # Make a task processor for CPU-bound couroutine tasks.
+            worker_threads: $worker-threads         # Process tasks in 4 threads.
+            worker_threads#fallback: 4
+
+        fs-task-processor:            # Make a separate task processor for filesystem bound tasks.
+            worker_threads: $worker-fs-threads
+            worker_threads#fallback: 4
+
+    default_task_processor: main-task-processor  # Task processor in which components start.
+
+    components:                       # Configuring components that were registered via component_list
+        server:
+            listener:                 # configuring the main listening socket...
+                port: $server-port
+                task_processor: main-task-processor    # ...process incoming requests on this task processor.
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: $logger-level
+                    level#fallback: info
+                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+
+        dynamic-config:                      # Dynamic config storage options, do nothing
+            defaults-path: $config-fallback
+            fs-task-processor: fs-task-processor
+
+        congestion-control:
+            fake-mode: $testsuite-enabled
+            load-enabled: true
+
+        handler-package:
+            path: /api/v1/package/{repo}/{arch}/{pkgname}
+            task_processor: main-task-processor
+            method: GET
+
+        handler-packages-search:
+            path: /api/v1/packages-search
+            task_processor: main-task-processor
+            method: GET
+
+        repomanage-postgres-db-1:
+            dbconnection: $db-connection
+            dbconnection#env: DB_CONNECTION
+            blocking_task_processor: fs-task-processor
+            dns_resolver: async
+            sync-start: true
+            check-user-types: true
+
+        http-client:
+            load-enabled: $testsuite-enabled
+            fs-task-processor: fs-task-processor
+
+        tests-control:
+            load-enabled: $testsuite-enabled
+            path: /tests/{action}
+            method: POST
+            task_processor: main-task-processor
+            testpoint-timeout: 10s
+            testpoint-url: mockserver/testpoint
+            throttling_enabled: false
+
+        handler-ping:
+            load-enabled: $testsuite-enabled
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        testsuite-support:
+
+        dns-client:
+            fs-task-processor: fs-task-processor

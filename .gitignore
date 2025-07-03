@@ -1,1 +1,5 @@
 /target
+api-service/third_party
+api-service/build
+api-service/build.sh
+/**/__pycache__/

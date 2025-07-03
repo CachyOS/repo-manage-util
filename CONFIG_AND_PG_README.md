@@ -11,7 +11,6 @@ This document provides a comprehensive guide to configuring the `repo-manage-uti
     *   [Detailed Profile Parameters](#detailed-profile-parameters)
 2.  [**PostgreSQL Integration**](#2-postgresql-integration)
     *   [Overview](#overview)
-    *   [Benefits](#benefits)
     *   [Schema](#schema)
 3.  [**Deployment with Docker**](#3-deployment-with-docker)
     *   [Prerequisites](#prerequisites)
@@ -26,7 +25,11 @@ The utility is configured using a TOML file. For a detailed, commented example, 
 
 ### Configuration File Location
 
-By default, the utility looks for the configuration file at `~/.config/repo-manage-util/config.toml`. You can specify a different path using the `--config` command-line argument.
+By default, the utility looks for a configuration file in the following locations:
+1.  `~/.config/repo-manage-util/config.toml`
+2.  `/etc/repo-manage-util/config.toml`
+
+You can also specify a custom path using the `--config` command-line argument.
 
 ### Global Settings
 
@@ -104,8 +107,7 @@ The provided `docker-compose.yml` file makes it easy to deploy the PostgreSQL da
 The `api-service` provides RESTful endpoints to query the package data stored in the PostgreSQL database.
 
 *   **Base URL**: `http://localhost:5862`
+*   **API Documentation**: A Swagger/OpenAPI schema is available in `api-service/swagger.yaml`. This can be used with tools like Swagger UI for interactive documentation.
 *   **Endpoints**:
     *   `/api/v1/packages-search`: Search for packages.
     *   `/api/v1/package/{repo}/{arch}/{pkgname}`: Get detailed information for a specific package.
-
-You can explore the available endpoints by reviewing the swagger schema in the `api-service/swagger.yaml`.

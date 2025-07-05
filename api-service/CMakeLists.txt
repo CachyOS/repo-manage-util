@@ -87,6 +87,7 @@ target_compile_features(project_options INTERFACE cxx_std_23)
 ## Target
 ##
 add_executable(api-postgresql-service
+   src/http_utils.cpp
    src/package_utils.cpp
    src/package_handler.cpp
    src/packages_search_handler.cpp

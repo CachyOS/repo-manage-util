@@ -1,4 +1,5 @@
 #include "package_handler.hpp"
+#include "http_utils.hpp"
 #include "package_utils.hpp"
 #include "queries.hpp"
 
@@ -40,6 +41,9 @@ userver::formats::json::Value PackageHandler::HandleRequestJsonThrow(
     const userver::formats::json::Value&,
     userver::server::request::RequestContext&) const {
     static constexpr auto kNotFound = "Package not found!";
+
+    // set http headers
+    http::utils::set_response_http_headers(request);
 
     const auto& repo    = request.GetPathArg("repo");
     const auto& arch    = request.GetPathArg("arch");

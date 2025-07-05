@@ -1,4 +1,5 @@
 #include "packages_search_handler.hpp"
+#include "http_utils.hpp"
 #include "package_utils.hpp"
 #include "pages_utils.hpp"
 #include "queries.hpp"
@@ -84,6 +85,9 @@ userver::formats::json::Value PackagesSearchHandler::HandleRequestJsonThrow(
     userver::server::request::RequestContext&) const {
     static constexpr auto kInvalidPage     = "Invalid page!";
     static constexpr auto kInvalidPageSize = "Invalid page size!";
+
+    // set http headers
+    http::utils::set_response_http_headers(request);
 
     // get paging args
     const auto& current_page = get_arg_helper(request.GetArg("current_page")).value_or(1);

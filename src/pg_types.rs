@@ -95,7 +95,9 @@ impl From<&alpm::Package> for PackageMetadata {
             pkg_csize: Some(pkg.size()),
             pkg_isize: Some(pkg.isize()),
             pkg_sha256sum: pkg.sha256sum().map(|s| s.to_string()),
-            pkg_pgpsig: pkg.sig().map(|s| String::from_utf8_lossy(s.sig()).to_string()).ok(),
+            // TODO(vnepogodin): should store keyid instead, for which need to get handle from
+            // package
+            pkg_pgpsig: pkg.base64_sig().map(|x| x.to_owned()),
         }
     }
 }

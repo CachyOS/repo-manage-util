@@ -42,7 +42,7 @@ impl PostgresqlHelper {
                 dependencies.into(),
             )
             .await
-            .context("Failed to insert or update package")?;
+            .context(anyhow::anyhow!("Failed to insert or update package: {pkg_name}"))?;
 
         log::debug!("'{repo_name}/{pkg_name}-{pkg_version}' ins/upd");
         Ok(package_id)

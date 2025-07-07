@@ -36,6 +36,20 @@ services:
         networks:
           - postgres
 
+    web-dashboard:
+        build: ./web-dashboard
+        container_name: web-dashboard
+        environment:
+          # This should match the API service URL.
+          - PUBLIC_ENDPOINT_URL=http://api-postgresql-service:5862/api
+        ports:
+          - 3000:3000
+        restart: on-failure
+        depends_on:
+          - api-postgresql-service
+        networks:
+          - postgres
+
 networks:
     postgres:
         driver: bridge

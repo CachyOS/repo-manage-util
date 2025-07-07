@@ -325,6 +325,9 @@ pub async fn add_pkgs_to_db(
 
     // Iterate over all new packages
     for new_pkgname in new_pkgs {
+        let pkg_filename = Path::new(new_pkgname).file_name().unwrap().to_str().unwrap();
+        let new_pkgname = crate::pkg_utils::get_pkgname_from_filename(pkg_filename).to_string();
+
         if let Some(pkg) =
             alpm_handle.syncdbs().iter().find_map(|db| db.pkg(new_pkgname.as_str()).ok())
         {

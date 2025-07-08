@@ -134,7 +134,7 @@ components:
         pkg_desc:
           type: string
           description: A brief description of the package.
-        updated:
+        pkg_builddate:
           type: integer
           format: int64
           description: The timestamp (Unix epoch) when the package was last updated.

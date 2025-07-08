@@ -91,8 +91,11 @@ CREATE TYPE helper_schema.brief_package AS (
   pkg_arch TEXT,
   pkg_version TEXT,
   pkg_desc TEXT,
-  updated INTEGER
+  pkg_builddate INTEGER
 );
+ELSE
+ALTER TYPE helper_schema.brief_package
+RENAME ATTRIBUTE updated TO pkg_builddate;
 END IF;
 END $$;
 
@@ -154,7 +157,7 @@ BEGIN
                p.pkg_arch,
                p.pkg_version,
                p.pkg_desc,
-               extract(epoch from p.updated)::INTEGER AS updated
+               extract(epoch from p.pkg_builddate)::INTEGER AS pkg_builddate
         FROM packages p;
 END;
 $$

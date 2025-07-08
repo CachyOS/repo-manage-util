@@ -42,7 +42,7 @@ struct BriefPackageRow {
     std::string pkg_arch;
     std::string pkg_version;
     std::string pkg_desc;
-    std::time_t updated;
+    std::time_t pkg_builddate;
 };
 
 struct BriefPackagePageResultRow {

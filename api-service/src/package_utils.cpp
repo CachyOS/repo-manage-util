@@ -33,12 +33,12 @@ userver::formats::json::Value Serialize(
     userver::formats::serialize::To<userver::formats::json::Value>) {
     auto pkg_object = userver::formats::json::ValueBuilder(userver::formats::json::Type::kObject);
 
-    pkg_object["pkg_name"]    = row.pkg_name;
-    pkg_object["repo_name"]   = row.repo_name;
-    pkg_object["pkg_arch"]    = row.pkg_arch;
-    pkg_object["pkg_version"] = row.pkg_version;
-    pkg_object["pkg_desc"]    = row.pkg_desc;
-    pkg_object["updated"]     = row.updated;
+    pkg_object["pkg_name"]      = row.pkg_name;
+    pkg_object["repo_name"]     = row.repo_name;
+    pkg_object["pkg_arch"]      = row.pkg_arch;
+    pkg_object["pkg_version"]   = row.pkg_version;
+    pkg_object["pkg_desc"]      = row.pkg_desc;
+    pkg_object["pkg_builddate"] = row.pkg_builddate;
 
     return pkg_object.ExtractValue();
 }

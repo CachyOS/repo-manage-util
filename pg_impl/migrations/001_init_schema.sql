@@ -83,10 +83,10 @@ CREATE TABLE IF NOT EXISTS packages (
     pkg_files       TEXT[],
     updated         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     -- The natural key for a package instance.
-    UNIQUE(repo_name, pkg_name, pkg_version)
+    UNIQUE(repo_name, pkg_name)
 );
 
-CREATE INDEX IF NOT EXISTS idx_packages_name_version ON packages(pkg_name, pkg_version);
+CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(pkg_name);
 CREATE INDEX IF NOT EXISTS idx_packages_filename ON packages(pkg_filename);
 CREATE INDEX IF NOT EXISTS idx_packages_arch ON packages(pkg_arch);
 
@@ -123,7 +123,8 @@ BEGIN
         (_dependencies).pkg_makedepends, (_dependencies).pkg_checkdepends, (_dependencies).pkg_conflicts,
         (_dependencies).pkg_provides, (_dependencies).pkg_files
     )
-    ON CONFLICT (repo_name, pkg_name, pkg_version) DO UPDATE SET
+    ON CONFLICT (repo_name, pkg_name) DO UPDATE SET
+        pkg_version      = EXCLUDED.pkg_version,
         pkg_filename     = EXCLUDED.pkg_filename,
         pkg_base         = EXCLUDED.pkg_base,
         pkg_desc         = EXCLUDED.pkg_desc,
@@ -152,7 +153,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION helper_schema.remove_package(_repo_name text, _pkg_name text, _pkg_version text)
+CREATE OR REPLACE FUNCTION helper_schema.remove_package(_repo_name text, _pkg_name text)
     RETURNS BOOLEAN
     AS $$
 DECLARE
@@ -161,22 +162,10 @@ BEGIN
     DELETE FROM packages
     WHERE
         repo_name = _repo_name AND
-        pkg_name = _pkg_name AND
-        pkg_version = _pkg_version;
+        pkg_name = _pkg_name;
 
     GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
     RETURN v_deleted_count > 0;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION helper_schema.remove_stale_package(_repo_name text, _pkg_name text)
-    RETURNS VOID
-    AS $$
-BEGIN
-    DELETE FROM packages
-    WHERE
-        repo_name = _repo_name AND
-        pkg_name = _pkg_name;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -238,45 +227,6 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql STABLE;
-
-CREATE OR REPLACE FUNCTION helper_schema.get_latest_packages(_repo_name text)
-    RETURNS SETOF packages
-    AS $$
-BEGIN
-    RETURN QUERY
-    SELECT DISTINCT ON (p.pkg_name, p.pkg_arch) *
-    FROM packages p
-    WHERE p.repo_name = _repo_name
-    ORDER BY p.pkg_name, p.pkg_arch, p.pkg_version DESC, p.updated DESC;
-END;
-$$
-LANGUAGE plpgsql STABLE;
-
-CREATE OR REPLACE FUNCTION helper_schema.cleanup_old_package_versions(_repo_name text, _keep_versions integer = 1)
-    RETURNS INTEGER
-    AS $$
-DECLARE
-    v_deleted_count INTEGER;
-BEGIN
-    WITH ranked_packages AS (
-        SELECT id, ROW_NUMBER() OVER (
-                 PARTITION BY pkg_name, pkg_arch
-                 ORDER BY pkg_version DESC, updated DESC
-             ) as rn
-        FROM packages
-        WHERE repo_name = _repo_name
-    )
-    DELETE FROM packages
-    WHERE id IN (
-        SELECT id
-        FROM ranked_packages
-        WHERE rn > _keep_versions
-    );
-
-    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
-    RETURN v_deleted_count;
-END;
-$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION helper_schema.insert_or_update_repository(_repo_name text, _info helper_schema.repository_info)
     RETURNS UUID

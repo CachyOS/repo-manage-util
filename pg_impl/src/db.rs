@@ -231,7 +231,7 @@ impl Db {
         Ok(id.unwrap())
     }
 
-    /// Removes a specific version of a package from a repository.
+    /// Removes a package from a repository.
     ///
     /// Returns `true` if a package was found and deleted, `false` otherwise.
     ///
@@ -241,31 +241,24 @@ impl Db {
     /// # use pg_impl::{db::Db, error::Result};
     /// # async fn run() -> Result<()> {
     /// # let db = Db::connect("...").await?;
-    /// let was_removed = db.remove_package("core-testing", "linux", "5.15.1-1").await?;
+    /// let was_removed = db.remove_package("core-testing", "linux").await?;
     /// if was_removed {
-    ///     println!("Successfully removed linux-5.15.1-1 from core-testing.");
+    ///     println!("Successfully removed linux from core-testing.");
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn remove_package(
-        &self,
-        repo_name: &str,
-        pkg_name: &str,
-        pkg_version: &str,
-    ) -> Result<bool> {
-        let was_removed = sqlx::query_scalar!(
-            "SELECT helper_schema.remove_package($1, $2, $3)",
-            repo_name,
-            pkg_name,
-            pkg_version
-        )
-        .fetch_one(&self.pool)
-        .await?;
+    pub async fn remove_package(&self, repo_name: &str, pkg_name: &str) -> Result<bool> {
+        let was_removed =
+            sqlx::query_scalar!("SELECT helper_schema.remove_package($1, $2)", repo_name, pkg_name)
+                .fetch_one(&self.pool)
+                .await?;
         Ok(was_removed.unwrap_or(false))
     }
 
-    /// Removes a stale package from a repository.
+    /// Gets information about a specific package from a repository.
+    ///
+    /// Returns `Option<Package>` containing the package info if found.
     ///
     /// # Example
     ///
@@ -273,46 +266,26 @@ impl Db {
     /// # use pg_impl::{db::Db, error::Result};
     /// # async fn run() -> Result<()> {
     /// # let db = Db::connect("...").await?;
-    /// db.remove_stale_package("extra", "awesome-wm").await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn remove_stale_package(&self, repo_name: &str, pkg_name: &str) -> Result<()> {
-        let _ =
-            sqlx::query!("SELECT helper_schema.remove_stale_package($1, $2)", repo_name, pkg_name,)
-                .fetch_optional(&self.pool)
-                .await?;
-        Ok(())
-    }
-
-    /// Gets all available versions of a specific package from a repository.
-    ///
-    /// Returns `Vec<Package>` containing all versions of the specified package.
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// # use pg_impl::{db::Db, error::Result};
-    /// # async fn run() -> Result<()> {
-    /// # let db = Db::connect("...").await?;
-    /// let versions = db.get_package_info("core", "glibc").await?;
-    /// println!("Available versions of glibc in core:");
-    /// for pkg in versions {
-    ///     println!("- {}", pkg.pkg_version.unwrap_or_default());
+    /// if let Some(pkg) = db.get_package_info("core", "glibc").await? {
+    ///     println!("Version of glibc in core: {}", pkg.pkg_version.unwrap_or_default());
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_package_info(&self, repo_name: &str, pkg_name: &str) -> Result<Vec<Package>> {
-        let packages = sqlx::query_as!(
+    pub async fn get_package_info(
+        &self,
+        repo_name: &str,
+        pkg_name: &str,
+    ) -> Result<Option<Package>> {
+        let package = sqlx::query_as!(
             Package,
             "SELECT * FROM helper_schema.get_package_info($1, $2)",
             repo_name,
             pkg_name
         )
-        .fetch_all(&self.pool)
+        .fetch_optional(&self.pool)
         .await?;
-        Ok(packages)
+        Ok(package)
     }
 
     /// Gets all packages of a specific architecture from a repository.
@@ -405,62 +378,6 @@ impl Db {
         .fetch_all(&self.pool)
         .await?;
         Ok(packages)
-    }
-
-    /// Retrieves the latest version of each unique package in a repository.
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// # use pg_impl::{db::Db, error::Result};
-    /// # async fn run() -> Result<()> {
-    /// # let db = Db::connect("...").await?;
-    /// let latest_packages = db.get_latest_packages("extra").await?;
-    /// println!("Latest packages in 'extra': {}", latest_packages.len());
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn get_latest_packages(&self, repo_name: &str) -> Result<Vec<Package>> {
-        let packages = sqlx::query_as!(
-            Package,
-            "SELECT * FROM helper_schema.get_latest_packages($1)",
-            repo_name
-        )
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(packages)
-    }
-
-    /// Deletes old package versions, keeping a specified number of recent versions for each
-    /// package.
-    ///
-    /// Returns the total number of deleted package records.
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// # use pg_impl::{db::Db, error::Result};
-    /// # async fn run() -> Result<()> {
-    /// # let db = Db::connect("...").await?;
-    /// // Keep only the 3 most recent versions of each package in 'core'
-    /// let deleted_count = db.cleanup_old_package_versions("core", 3).await?;
-    /// println!("Cleaned up {} old package versions from 'core'.", deleted_count);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn cleanup_old_package_versions(
-        &self,
-        repo_name: &str,
-        versions_to_keep: i32,
-    ) -> Result<i32> {
-        let deleted_count = sqlx::query_scalar!(
-            "SELECT helper_schema.cleanup_old_package_versions($1, $2)",
-            repo_name,
-            versions_to_keep
-        )
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(deleted_count.unwrap_or(0))
     }
 
     /// Retrieves statistics for a specific repository.

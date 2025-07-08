@@ -109,23 +109,23 @@ mod tests {
         assert!(!pkg_id.is_nil());
 
         // 2. Get package and verify
-        let packages = db.get_package_info(repo_name, pkg_name).await.unwrap();
-        assert_eq!(packages.len(), 1);
-        let pkg = &packages[0];
+        let pkg_opt = db.get_package_info(repo_name, pkg_name).await.unwrap();
+        assert!(pkg_opt.is_some());
+        let pkg = pkg_opt.unwrap();
         assert_eq!(pkg.pkg_name, Some(pkg_name.into()));
         assert_eq!(pkg.pkg_version, Some(version.clone()));
         assert_eq!(pkg.pkg_license, metadata.pkg_license);
 
-        // 3. Update package (same version, should update in place)
-        let (new_filename, _, mut new_metadata, new_deps) =
-            create_test_package_parts(pkg_name, "1.0.0-1");
+        // 3. Update package (new version, should update in place)
+        let (new_filename, new_version, mut new_metadata, new_deps) =
+            create_test_package_parts(pkg_name, "1.0.0-2");
         new_metadata.pkg_desc = Some("An updated description".to_string());
 
         let updated_pkg_id = db
             .insert_or_update_package(
                 repo_name,
                 pkg_name,
-                &version,
+                &new_version,
                 &new_filename,
                 new_metadata,
                 new_deps,
@@ -134,19 +134,21 @@ mod tests {
             .unwrap();
         assert_eq!(pkg_id, updated_pkg_id); // ON CONFLICT should return same ID
 
-        let packages = db.get_package_info(repo_name, pkg_name).await.unwrap();
-        assert_eq!(packages.len(), 1);
-        assert_eq!(packages[0].pkg_desc.as_deref(), Some("An updated description"));
+        let pkg_opt = db.get_package_info(repo_name, pkg_name).await.unwrap();
+        assert!(pkg_opt.is_some());
+        let pkg = pkg_opt.unwrap();
+        assert_eq!(pkg.pkg_desc.as_deref(), Some("An updated description"));
+        assert_eq!(pkg.pkg_version.as_deref(), Some("1.0.0-2"));
 
         // 4. Remove package
-        let was_removed = db.remove_package(repo_name, pkg_name, &version).await.unwrap();
+        let was_removed = db.remove_package(repo_name, pkg_name).await.unwrap();
         assert!(was_removed);
 
         // 5. Verify removal
-        let packages = db.get_package_info(repo_name, pkg_name).await.unwrap();
-        assert!(packages.is_empty());
+        let pkg_opt = db.get_package_info(repo_name, pkg_name).await.unwrap();
+        assert!(pkg_opt.is_none());
 
-        let was_removed_again = db.remove_package(repo_name, pkg_name, &version).await.unwrap();
+        let was_removed_again = db.remove_package(repo_name, pkg_name).await.unwrap();
         assert!(!was_removed_again);
     }
 
@@ -195,63 +197,6 @@ mod tests {
 
         let arm_pkgs = db.get_packages_by_arch(repo_name, "armv7h").await.unwrap();
         assert!(arm_pkgs.is_empty());
-
-        // Test get_latest_packages (should return all 3 since they are unique)
-        let latest = db.get_latest_packages(repo_name).await.unwrap();
-        assert_eq!(latest.len(), 3);
-    }
-
-    #[sqlx::test(migrations = "./migrations")]
-    async fn test_remove_stale_package(pool: PgPool) {
-        let db = Db::connect_from_pgpool(pool).await.unwrap();
-        let repo_name = "extra-staging";
-        db.insert_or_update_repository(repo_name, None).await.unwrap();
-
-        let pkg_name = "potentially-stale-pkg";
-        let (fname, version, meta, deps) = create_test_package_parts(pkg_name, "1.0");
-        db.insert_or_update_package(repo_name, pkg_name, &version, &fname, meta, deps)
-            .await
-            .unwrap();
-
-        // Verify the package exists
-        assert!(!db.get_package_info(repo_name, pkg_name).await.unwrap().is_empty());
-
-        // Calling this function should not error out.
-        db.remove_stale_package(repo_name, pkg_name).await.unwrap();
-
-        // Package shouldn't exist
-        assert_eq!(db.get_package_info(repo_name, pkg_name).await.unwrap(), vec![]);
-    }
-
-    #[sqlx::test(migrations = "./migrations")]
-    async fn test_cleanup_and_latest_versions(pool: PgPool) {
-        let db = Db::connect_from_pgpool(pool).await.unwrap();
-        let repo_name = "multilib";
-        db.insert_or_update_repository(repo_name, None).await.unwrap();
-
-        let pkg_name = "versioned-lib";
-        // Insert multiple versions
-        for ver in ["1.0-1", "1.1-1", "1.2-1"] {
-            let (fname, version, meta, deps) = create_test_package_parts(pkg_name, ver);
-            db.insert_or_update_package(repo_name, pkg_name, &version, &fname, meta, deps)
-                .await
-                .unwrap();
-        }
-
-        // 1. Test get_latest_packages
-        let latest_pkgs = db.get_latest_packages(repo_name).await.unwrap();
-        assert_eq!(latest_pkgs.len(), 1);
-        assert_eq!(latest_pkgs[0].pkg_name, Some(pkg_name.into()));
-        assert_eq!(latest_pkgs[0].pkg_version, Some("1.2-1".into()));
-
-        // 2. Test cleanup
-        let deleted_count = db.cleanup_old_package_versions(repo_name, 1).await.unwrap();
-        assert_eq!(deleted_count, 2);
-
-        // 3. Verify cleanup result
-        let remaining_pkgs = db.get_repo_packages(repo_name).await.unwrap();
-        assert_eq!(remaining_pkgs.len(), 1);
-        assert_eq!(remaining_pkgs[0].pkg_version, Some("1.2-1".into()));
     }
 
     #[sqlx::test(migrations = "./migrations")]
@@ -288,7 +233,7 @@ mod tests {
         assert_eq!(stats.len(), 1);
         let summary = &stats[0];
         assert_eq!(summary.repo_name, Some(repo_name.into()));
-        assert_eq!(summary.total_packages, Some(3));
+        assert_eq!(summary.total_packages, Some(2));
         assert_eq!(summary.unique_packages, Some(2));
     }
 }

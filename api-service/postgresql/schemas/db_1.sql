@@ -95,7 +95,14 @@ CREATE TYPE helper_schema.brief_package AS (
   pkg_desc TEXT,
   pkg_builddate INTEGER
 );
-ELSE
+ELSIF (
+    select 1
+    FROM pg_attribute att
+    JOIN pg_type t ON t.typrelid = att.attrelid
+    JOIN pg_namespace n ON t.typnamespace = n.oid
+    WHERE t.typname = 'brief_package'
+        AND att.attname = 'updated'
+        AND NOT att.attisdropped) then
 ALTER TYPE helper_schema.brief_package
 RENAME ATTRIBUTE updated TO pkg_builddate;
 END IF;

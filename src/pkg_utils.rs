@@ -46,7 +46,7 @@ pub fn validate_packages(require_signature: bool, pkg_list: &[String]) -> bool {
         // check for signature if we require it
         if require_signature && !Path::new(&format!("{pkg}.sig")).exists() {
             let pkg_db_entry = get_pkg_db_pair_from_path(pkg);
-            log::error!("Found package without required signature: '{pkg_db_entry}'");
+            tracing::error!("Found package without required signature: '{pkg_db_entry}'");
             invalid_pkgs.push(pkg.clone());
         }
     }
@@ -179,7 +179,7 @@ pub fn remove_pkgs_without_sig(pkgs_list: &mut Vec<String>) {
     pkgs_list.retain(|pkg| {
         let pkg_sig_path = format!("{pkg}.sig");
         if !Path::new(&pkg_sig_path).exists() {
-            log::error!("package doesn't have required signature {pkg}");
+            tracing::error!("package doesn't have required signature {pkg}");
             false
         } else {
             true

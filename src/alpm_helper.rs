@@ -246,7 +246,7 @@ pub fn get_newer_packages_from_reference(
 
                     // skip if the package file doesn't exist in the reference repo
                     if !Path::new(&pkgfile_path).exists() {
-                        log::error!("Package file doesn't exist in ref repo: {pkgfile_path}");
+                        tracing::error!("Package file doesn't exist in ref repo: {pkgfile_path}");
                         continue;
                     }
                     packages_to_copy.push(pkgfile_path);
@@ -302,7 +302,7 @@ pub async fn populate_repo_to_db(
         }
     }
 
-    log::debug!("Populated packages from repository {repo_name} to the database");
+    tracing::debug!("Populated packages from repository {repo_name} to the database");
 
     // Cleanup temp dirs after we are done
     cleanup_alpm_tempdir(&alpm_handle)?;
@@ -356,7 +356,7 @@ pub async fn add_pkgs_to_db(
         }
     }
 
-    log::debug!("Added {repo_name} packages to the database");
+    tracing::debug!("Added {repo_name} packages to the database");
 
     // Cleanup temp dirs after we are done
     cleanup_alpm_tempdir(&alpm_handle)?;
@@ -369,7 +369,7 @@ fn cleanup_alpm_tempdir(alpm_handle: &Alpm) -> Result<()> {
 
     let alpm_root_dir = alpm_handle.root();
     if !alpm_root_dir.starts_with(tmp_dir.to_str().unwrap()) {
-        log::error!("alpm handle root at '{alpm_root_dir}' wasn't removed");
+        tracing::error!("alpm handle root at '{alpm_root_dir}' wasn't removed");
         return Ok(());
     }
 

@@ -10,7 +10,7 @@ pub fn handle_repo_add(profile: &config::Profile, pkgfiles: &[String]) -> Result
 
     // push provided package files into repo-add args
     repo_add_args.extend_from_slice(pkgfiles);
-    log::debug!("repo_add_args := {repo_add_args:?}");
+    tracing::debug!("repo_add_args := {repo_add_args:?}");
 
     let output = Exec::cmd("repo-add")
         .args(&repo_add_args)
@@ -20,10 +20,10 @@ pub fn handle_repo_add(profile: &config::Profile, pkgfiles: &[String]) -> Result
 
     let proc_output = String::from_utf8_lossy(&output.stdout);
     if !output.success() {
-        log::error!("repo-add output:\n{proc_output}");
+        tracing::error!("repo-add output:\n{proc_output}");
         anyhow::bail!("repo-add failed!");
     }
-    log::debug!("repo-add output:\n{proc_output}");
+    tracing::debug!("repo-add output:\n{proc_output}");
 
     Ok(())
 }
@@ -35,7 +35,7 @@ pub fn handle_repo_remove(profile: &config::Profile, pkgname_list: &[String]) ->
 
     // push provided package names into repo-remove args
     repo_remove_args.extend_from_slice(pkgname_list);
-    log::debug!("repo_remove_args := {repo_remove_args:?}");
+    tracing::debug!("repo_remove_args := {repo_remove_args:?}");
 
     let output = Exec::cmd("repo-remove")
         .args(&repo_remove_args)
@@ -45,10 +45,10 @@ pub fn handle_repo_remove(profile: &config::Profile, pkgname_list: &[String]) ->
 
     let proc_output = String::from_utf8_lossy(&output.stdout);
     if !output.success() {
-        log::error!("repo-remove output:\n{proc_output}");
+        tracing::error!("repo-remove output:\n{proc_output}");
         anyhow::bail!("repo-remove failed!");
     }
-    log::debug!("repo-remove output:\n{proc_output}");
+    tracing::debug!("repo-remove output:\n{proc_output}");
 
     Ok(())
 }

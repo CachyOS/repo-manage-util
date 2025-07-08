@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     // initialize the logger
-    logger::init_logger().expect("Failed to initialize logger");
+    logger::init_logger();
 
     // load config
     let config_path = config::get_config_path()?;
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
             let repo_db_prefix = pkg_utils::get_repo_db_prefix(&profile.repo);
             let repo_db_pattern = format!("{}/{repo_db_prefix}.*", repo_dir.to_str().unwrap());
 
-            log::debug!("repo db path := {repo_db_pattern}");
+            tracing::debug!("repo db path := {repo_db_pattern}");
 
             do_repo_reset(profile, &repo_db_pattern, repo_dir, pg_helper, args.only_pg).await?;
             // TODO(vnepogodin): handle debug packages
@@ -127,7 +127,7 @@ async fn do_repo_reset(
     if !only_pg {
         // Remove db and files
         for pattern in [repo_db_pattern] {
-            log::debug!("removing db file '{pattern}'..");
+            tracing::debug!("removing db file '{pattern}'..");
             for entry in glob::glob(pattern)? {
                 fs::remove_file(entry?)?
             }
@@ -157,7 +157,7 @@ async fn do_repo_reset(
         alpm_helper::populate_repo_to_db(&profile.repo, pg).await?;
     }
 
-    log::info!("Repo reset is done!");
+    tracing::info!("Repo reset is done!");
 
     Ok(())
 }
@@ -216,9 +216,9 @@ async fn do_repo_update(
             alpm_helper::add_pkgs_to_db(&profile.repo, pg, &new_pkgs).await?;
         }
 
-        log::info!("Repo update is done!");
+        tracing::info!("Repo update is done!");
     } else {
-        log::info!("nothing to do");
+        tracing::info!("nothing to do");
     }
 
     Ok(())
@@ -226,7 +226,7 @@ async fn do_repo_update(
 
 async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     if profile.reference_repo.is_none() {
-        log::error!("Reference repository is not configured. Cannot proceed further");
+        tracing::error!("Reference repository is not configured. Cannot proceed further");
         return Ok(());
     }
 
@@ -237,22 +237,22 @@ async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> 
 
     if !packages_to_copy.is_empty() {
         // NOTE: probably we would rather want here to see filenames instead of full paths
-        log::info!("Found newer packages in ref repo: {packages_to_copy:?}");
+        tracing::info!("Found newer packages in ref repo: {packages_to_copy:?}");
     }
 
     // lets invalidate packages if they are without signatures
     if !pkg_utils::validate_packages(profile.require_signature, &packages_to_copy) {
-        log::error!("Aborting due to found 'invalid' packages. Cannot proceed further");
+        tracing::error!("Aborting due to found 'invalid' packages. Cannot proceed further");
         return Ok(());
     }
 
     // Copy the packages to the profile repository directory
     for package_path in &packages_to_copy {
         let ref_pkg = pkg_utils::get_pkg_db_pair_from_path(package_path);
-        log::info!("ref repo: {ref_pkg}");
+        tracing::info!("ref repo: {ref_pkg}");
 
         if let Err(pkg_copy_err) = handle_pkgfile_copy(package_path, repo_dir.to_str().unwrap()) {
-            log::error!("Error occurred while copying package files: {pkg_copy_err}");
+            tracing::error!("Error occurred while copying package files: {pkg_copy_err}");
             return Ok(());
         }
     }
@@ -262,9 +262,9 @@ async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> 
 
     // report status only when had some work
     if !packages_to_copy.is_empty() {
-        log::info!("Repo ref sync is done!");
+        tracing::info!("Repo ref sync is done!");
     } else {
-        log::info!("nothing to do");
+        tracing::info!("nothing to do");
     }
 
     Ok(())
@@ -284,12 +284,12 @@ async fn do_repo_move_pkgs(
 
     if !pkg_to_move_list.is_empty() {
         // NOTE: probably we would rather want here to see filenames instead of full paths
-        log::info!("Found packages to move in current dir: {pkg_to_move_list:?}");
+        tracing::info!("Found packages to move in current dir: {pkg_to_move_list:?}");
     }
 
     // lets invalidate packages if they are without signatures
     if !pkg_utils::validate_packages(profile.require_signature, &pkg_to_move_list) {
-        log::error!("Aborting due to found 'invalid' packages. Cannot proceed further");
+        tracing::error!("Aborting due to found 'invalid' packages. Cannot proceed further");
         return Ok(());
     }
 
@@ -297,14 +297,14 @@ async fn do_repo_move_pkgs(
     let already_in_repo = pkg_utils::exclude_existing_pkgs(&profile.repo, &pkg_to_move_list);
 
     if !already_in_repo.is_empty() {
-        log::warn!(
+        tracing::warn!(
             "Found packages already in the repo: {already_in_repo:?}, excluding them from move"
         );
         pkg_to_move_list.retain(|pkg| !already_in_repo.contains(pkg));
     }
 
     if let Err(pkg_move_err) = handle_pkgfiles_move(&pkg_to_move_list, repo_dir.to_str().unwrap()) {
-        log::error!("Error occurred while moving package files: {pkg_move_err}");
+        tracing::error!("Error occurred while moving package files: {pkg_move_err}");
         return Ok(());
     }
 
@@ -315,9 +315,9 @@ async fn do_repo_move_pkgs(
 
     // report status only when had some work
     if !pkg_to_move_list.is_empty() {
-        log::info!("Repo MovePkgsToRepo is done!");
+        tracing::info!("Repo MovePkgsToRepo is done!");
     } else {
-        log::info!("nothing to do");
+        tracing::info!("nothing to do");
     }
 
     Ok(())
@@ -339,18 +339,18 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
 
     for brand_new_pkg in brand_new_pkgs {
         let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&brand_new_pkg);
-        log::info!("Found brand new package in repo '{repo_db_prefix}': '{pkg_pair}'");
+        tracing::info!("Found brand new package in repo '{repo_db_prefix}': '{pkg_pair}'");
     }
 
     for new_pkg in new_pkgs {
         let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&new_pkg);
-        log::info!("Found new package in repo '{repo_db_prefix}': '{pkg_pair}'");
+        tracing::info!("Found new package in repo '{repo_db_prefix}': '{pkg_pair}'");
     }
 
     // 1.1 handle removal/backup of old packages here
     for outdated_pkg in outdated_pkgs {
         let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&outdated_pkg);
-        log::info!("Found outdated package in repo '{repo_db_prefix}': '{pkg_pair}'");
+        tracing::info!("Found outdated package in repo '{repo_db_prefix}': '{pkg_pair}'");
     }
 
     // 2. handle stale packages
@@ -361,7 +361,7 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
 
     for stale_filename in stale_filenames {
         let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&stale_filename);
-        log::info!("Found stale package in repo '{repo_db_prefix}': '{pkg_pair}'");
+        tracing::info!("Found stale package in repo '{repo_db_prefix}': '{pkg_pair}'");
     }
 
     // 3. handle ref repository
@@ -376,11 +376,11 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
                 .iter()
                 .map(|x| pkg_utils::get_pkg_db_pair_from_path(x))
                 .collect::<Vec<_>>();
-            log::info!("Found new pkgs from ref repo '{repo_db_prefix}': {new_pkgname_list:?}");
+            tracing::info!("Found new pkgs from ref repo '{repo_db_prefix}': {new_pkgname_list:?}");
         }
     }
 
-    log::info!("Repo checkup is done!");
+    tracing::info!("Repo checkup is done!");
 
     Ok(())
 }
@@ -388,7 +388,7 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
 fn do_debug_packages_check(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // 1. check if we have debug repo assigned
     if profile.debug_dir.is_none() || profile.debug_dir == Some(profile.repo.clone()) {
-        log::info!("Separate debug repo is disabled for this profile");
+        tracing::info!("Separate debug repo is disabled for this profile");
         return Ok(());
     }
 
@@ -415,10 +415,10 @@ fn do_debug_packages_check(profile: &config::Profile, repo_dir: &Path) -> Result
     // .iter().map(|x| Path::new(x))
     {
         let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(pkg_to_move);
-        log::debug!("Found debug package in repo: {pkg_pair}");
-        // log::debug!("Moving debug package into debug dir: {pkg_to_move}");
+        tracing::debug!("Found debug package in repo: {pkg_pair}");
+        // tracing::debug!("Moving debug package into debug dir: {pkg_to_move}");
         // if let Err(file_err) = fs::rename_file(filepath) {
-        //     log::error!("Failed to move the debug package '{filepath}': {file_err}");
+        //     tracing::error!("Failed to move the debug package '{filepath}': {file_err}");
         // }
     }
 
@@ -428,12 +428,12 @@ fn do_debug_packages_check(profile: &config::Profile, repo_dir: &Path) -> Result
 // Runs through the backup folder, and removes the backup of versions which we don't want to keep
 fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
     if !profile.backup || profile.backup_dir == Some(profile.repo.clone()) {
-        log::info!("Backup is disabled for this repo");
+        tracing::info!("Backup is disabled for this repo");
         return Ok(());
     }
 
     if profile.backup_num.is_none() {
-        log::info!(
+        tracing::info!(
             "Backup is enabled, but the versions of backup packages in the repo is unlimited for \
              this repo"
         );
@@ -449,15 +449,17 @@ fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
     for (name, versions) in pkg_map.iter_mut() {
         // Remove the packages with more than N versions
         let pkg_versions = versions.iter().map(|x| x.1.to_string()).collect::<Vec<_>>();
-        log::info!("Found more backup versions of package({name}) than allowed: {pkg_versions:?}");
+        tracing::info!(
+            "Found more backup versions of package({name}) than allowed: {pkg_versions:?}"
+        );
 
         // TODO(vnepogodin): make a prompt on every run here in case iteractive is on
         for filepath in versions.iter().map(|x| &x.0) {
-            log::debug!("Removing package version: {filepath}");
+            tracing::debug!("Removing package version: {filepath}");
 
             // remove the actual package file
             if let Err(file_err) = fs::remove_file(filepath) {
-                log::error!("Failed to remove the backup file '{filepath}': {file_err}");
+                tracing::error!("Failed to remove the backup file '{filepath}': {file_err}");
             }
 
             // remove package signature
@@ -465,12 +467,14 @@ fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
             if Path::new(&sig_filepath).exists()
                 && let Err(file_err) = fs::remove_file(&sig_filepath)
             {
-                log::error!("Failed to remove the backup file sig '{sig_filepath}': {file_err}");
+                tracing::error!(
+                    "Failed to remove the backup file sig '{sig_filepath}': {file_err}"
+                );
             }
         }
     }
 
-    log::info!("The cleanup of backups is done!");
+    tracing::info!("The cleanup of backups is done!");
 
     Ok(())
 }
@@ -490,18 +494,18 @@ async fn move_packages_from_repo_to_repo(
     let pkg_to_move_list = pkg_utils::find_packages_in_dir(src_repo_dir)?;
 
     // NOTE: probably we would rather want here to see filenames instead of full paths
-    log::info!("Found packages to move in src dir: {pkg_to_move_list:?}");
+    tracing::info!("Found packages to move in src dir: {pkg_to_move_list:?}");
 
     // lets invalidate packages if they are without signatures
     if !pkg_utils::validate_packages(dest_profile.require_signature, &pkg_to_move_list) {
-        log::error!("Aborting due to found 'invalid' packages. Cannot proceed further");
+        tracing::error!("Aborting due to found 'invalid' packages. Cannot proceed further");
         return Ok(());
     }
 
     if let Err(pkg_move_err) =
         handle_pkgfiles_move(&pkg_to_move_list, dest_repo_dir.to_str().unwrap())
     {
-        log::error!("Error occurred while moving package files: {pkg_move_err}");
+        tracing::error!("Error occurred while moving package files: {pkg_move_err}");
         return Ok(());
     }
 
@@ -520,26 +524,26 @@ async fn move_packages_from_repo_to_repo(
         alpm_helper::add_pkgs_to_db(&dest_profile.repo, pg, &added_pkgs_files).await?;
     }
 
-    log::info!("Repo MovePkgsFromRepo2Repo is done!");
+    tracing::info!("Repo MovePkgsFromRepo2Repo is done!");
 
     Ok(())
 }
 
 fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> Result<()> {
     // 1. handle removal/backup here
-    log::debug!("outdated_pkgs := {outdated_pkgs:?}");
+    tracing::debug!("outdated_pkgs := {outdated_pkgs:?}");
     for outdated_pkg in outdated_pkgs {
         let outdated_pkg_entry = pkg_utils::get_pkg_db_pair_from_path(outdated_pkg);
 
         // TODO(vnepogodin): make a prompt on every run here in case iteractive is on
         if profile.backup && profile.backup_dir != Some(profile.repo.clone()) {
-            log::info!("backup '{outdated_pkg_entry}'..");
+            tracing::info!("backup '{outdated_pkg_entry}'..");
             handle_pkgfile_move(outdated_pkg, profile.backup_dir.as_ref().unwrap())?;
         } else {
-            log::info!("rm '{outdated_pkg_entry}'..");
+            tracing::info!("rm '{outdated_pkg_entry}'..");
             // we would rather be fail safe here and just report without *panicing*
             if let Err(rm_err) = fs::remove_file(outdated_pkg) {
-                log::error!("Failed to remove outdated package '{outdated_pkg}': {rm_err}");
+                tracing::error!("Failed to remove outdated package '{outdated_pkg}': {rm_err}");
             }
 
             // remove package signature
@@ -547,7 +551,9 @@ fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> 
             if Path::new(&sig_filepath).exists()
                 && let Err(file_err) = fs::remove_file(&sig_filepath)
             {
-                log::error!("Failed to remove outdated package sig '{sig_filepath}': {file_err}");
+                tracing::error!(
+                    "Failed to remove outdated package sig '{sig_filepath}': {file_err}"
+                );
             }
         }
     }
@@ -568,7 +574,7 @@ fn handle_pkgfile_copy(pkg_to_copy: &str, dest_dir: &str) -> Result<()> {
 
     // NOTE: maybe we should change log level depending on the func argument,
     // we may not want to have it all time as info, for example at handling outdated packages
-    log::info!("Copying pkg from '{pkg_to_copy}' -> '{dest_path}'");
+    tracing::info!("Copying pkg from '{pkg_to_copy}' -> '{dest_path}'");
 
     // copying package
     if let Err(copy_err) = fs::copy(pkg_to_copy, &dest_path) {
@@ -580,7 +586,7 @@ fn handle_pkgfile_copy(pkg_to_copy: &str, dest_dir: &str) -> Result<()> {
     if Path::new(&pkg_sig_to_copy).exists()
         && let Err(copy_err) = fs::copy(pkg_sig_to_copy, &sig_dest_path)
     {
-        log::error!("Failed to copy pkg signature: {copy_err}");
+        tracing::error!("Failed to copy pkg signature: {copy_err}");
     }
 
     Ok(())
@@ -592,7 +598,7 @@ fn handle_pkgfile_move(pkg_to_move: &str, dest_dir: &str) -> Result<()> {
 
     // NOTE: maybe we should change log level depending on the func argument,
     // we may not want to have it all time as info, for example at handling outdated packages
-    log::info!("Moving pkg from '{pkg_to_move}' -> '{dest_path}'");
+    tracing::info!("Moving pkg from '{pkg_to_move}' -> '{dest_path}'");
 
     // NOTE: maybe we should handle move part better?
 
@@ -606,7 +612,7 @@ fn handle_pkgfile_move(pkg_to_move: &str, dest_dir: &str) -> Result<()> {
     if Path::new(&pkg_sig_to_move).exists()
         && let Err(move_err) = fs::rename(pkg_sig_to_move, &sig_dest_path)
     {
-        log::error!("Failed to move pkg signature: {move_err}");
+        tracing::error!("Failed to move pkg signature: {move_err}");
     }
 
     Ok(())

@@ -44,7 +44,7 @@ impl PostgresqlHelper {
             .await
             .context(anyhow::anyhow!("Failed to insert or update package: {pkg_name}"))?;
 
-        log::debug!("'{repo_name}/{pkg_name}-{pkg_version}' ins/upd");
+        tracing::debug!("'{repo_name}/{pkg_name}-{pkg_version}' ins/upd");
         Ok(package_id)
     }
 
@@ -58,9 +58,9 @@ impl PostgresqlHelper {
             .context("Failed to remove package")?;
 
         if removed {
-            log::debug!("'{repo_name}/{pkg_name}' removed from database");
+            tracing::debug!("'{repo_name}/{pkg_name}' removed from database");
         } else {
-            log::debug!("'{repo_name}/{pkg_name}' not found in database");
+            tracing::debug!("'{repo_name}/{pkg_name}' not found in database");
         }
 
         Ok(removed)
@@ -70,7 +70,7 @@ impl PostgresqlHelper {
     pub async fn remove_packages(&self, repo_name: &str, stale_pkgs: &[String]) -> Result<()> {
         for pkg_name in stale_pkgs {
             if let Err(err) = self.remove_package(repo_name, pkg_name).await {
-                log::error!("Failed to remove '{pkg_name}' from '{repo_name}: {err}");
+                tracing::error!("Failed to remove '{pkg_name}' from '{repo_name}: {err}");
             }
         }
 
@@ -177,7 +177,7 @@ impl PostgresqlHelper {
             .await
             .context("Failed to insert or update repository")?;
 
-        log::debug!("Repository '{repo_name}' ins/upd");
+        tracing::debug!("Repository '{repo_name}' ins/upd");
         Ok(repo_id)
     }
 

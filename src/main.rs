@@ -207,15 +207,15 @@ async fn do_repo_update(
         repo_utils::handle_repo_remove(profile, &stale_pkgs)?;
     }
 
-    // Update db if configured
-    if let Some(ref pg) = pg_helper {
-        let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
-        pg.remove_packages(&repo_name, &stale_pkgs).await?;
-        alpm_helper::add_pkgs_to_db(&profile.repo, pg, &new_pkgs).await?;
-    }
-
     // report status only when had some work
     if !new_pkgs.is_empty() || !stale_pkgs.is_empty() {
+        // Update db if configured
+        if let Some(ref pg) = pg_helper {
+            let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
+            pg.remove_packages(&repo_name, &stale_pkgs).await?;
+            alpm_helper::add_pkgs_to_db(&profile.repo, pg, &new_pkgs).await?;
+        }
+
         log::info!("Repo update is done!");
     } else {
         log::info!("nothing to do");

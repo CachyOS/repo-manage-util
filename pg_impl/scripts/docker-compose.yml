@@ -9,4 +9,4 @@ services:
         ports:
           - 15432:5432
         volumes:
-          - ../migrations/001_init_schema.sql:/docker-entrypoint-initdb.d/init.sql
+          - ../migrations/20250708113550_init.up.sql:/docker-entrypoint-initdb.d/init.sql

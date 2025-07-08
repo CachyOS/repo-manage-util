@@ -1,0 +1,3 @@
+DROP SCHEMA IF EXISTS helper_schema CASCADE;
+DROP TABLE IF EXISTS packages;
+DROP TABLE IF EXISTS repositories;

@@ -120,8 +120,10 @@ CREATE TABLE IF NOT EXISTS packages (
     pkg_files       TEXT[],
     updated         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     -- The natural key for a package instance.
-    UNIQUE(repo_name, pkg_name)
+    CONSTRAINT uniq_pkg UNIQUE(repo_name, pkg_name)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_pkg_idx ON packages (repo_name, pkg_name);
 
 CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(pkg_name);
 CREATE INDEX IF NOT EXISTS idx_packages_filename ON packages(pkg_filename);

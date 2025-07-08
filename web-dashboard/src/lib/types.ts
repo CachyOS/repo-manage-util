@@ -25,7 +25,7 @@ export interface BriefPackage {
   /**
    * The timestamp (Unix epoch) when the package was last updated.
    */
-  updated: number;
+  pkg_builddate: number;
 }
 
 /**

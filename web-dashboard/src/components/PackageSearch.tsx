@@ -166,7 +166,7 @@ export default function PackageSearch() {
                           <TableCell>{pkg.repo_name}</TableCell>
                           <TableCell>{pkg.pkg_arch}</TableCell>
                           <TableCell>
-                            {new Date(pkg.updated * 1000).toLocaleDateString()}
+                            {new Date(pkg.pkg_builddate * 1000).toLocaleDateString()}
                           </TableCell>
                         </TableRow>
                       ))}

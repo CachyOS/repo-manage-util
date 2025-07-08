@@ -48,47 +48,49 @@ impl PostgresqlHelper {
         Ok(package_id)
     }
 
-    /// Removes a specific version of a package from a repository.
+    /// Remove packages from the database.
     /// Returns true if a package was deleted.
-    pub async fn remove_package(
-        &self,
-        repo_name: &str,
-        pkg_name: &str,
-        pkg_version: &str,
-    ) -> Result<bool> {
+    pub async fn remove_package(&self, repo_name: &str, pkg_name: &str) -> Result<bool> {
         let removed = self
             .db
-            .remove_package(repo_name, pkg_name, pkg_version)
+            .remove_package(repo_name, pkg_name)
             .await
             .context("Failed to remove package")?;
 
         if removed {
-            log::debug!("'{repo_name}/{pkg_name}-{pkg_version}' removed from database");
+            log::debug!("'{repo_name}/{pkg_name}' removed from database");
         } else {
-            log::debug!("'{repo_name}/{pkg_name}-{pkg_version}' not found in database");
+            log::debug!("'{repo_name}/{pkg_name}' not found in database");
         }
 
         Ok(removed)
     }
 
-    /// Gets all versions of a specific package from a repository.
+    /// Removes a packages from a repository.
+    pub async fn remove_packages(&self, repo_name: &str, stale_pkgs: &[String]) -> Result<()> {
+        for pkg_name in stale_pkgs {
+            if let Err(err) = self.remove_package(repo_name, pkg_name).await {
+                log::error!("Failed to remove '{pkg_name}' from '{repo_name}: {err}");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Gets information about a specific package from a repository.
     pub async fn get_package_info(
         &self,
         repo_name: &str,
         pkg_name: &str,
-    ) -> Result<Vec<PackageInfo>> {
-        let rows = self
+    ) -> Result<Option<PackageInfo>> {
+        let row = self
             .db
             .get_package_info(repo_name, pkg_name)
             .await
             .context("Failed to get package info")?;
 
-        let mut packages = Vec::new();
-        for row in rows {
-            packages.push(row.into());
-        }
-
-        Ok(packages)
+        let pkg_info = row.map(|x| x.into());
+        Ok(pkg_info)
     }
 
     /// Gets all packages within a specific repository.
@@ -163,39 +165,6 @@ impl PostgresqlHelper {
         Ok(packages)
     }
 
-    /// Retrieves the latest version of each package in a repository.
-    pub async fn get_latest_packages(&self, repo_name: &str) -> Result<Vec<PackageInfo>> {
-        let rows = self
-            .db
-            .get_latest_packages(repo_name)
-            .await
-            .context("Failed to get latest packages")?;
-
-        let mut packages = Vec::new();
-        for row in rows {
-            packages.push(row.into());
-        }
-
-        Ok(packages)
-    }
-
-    /// Deletes old package versions, keeping a specified number of recent versions.
-    /// Returns the number of deleted package records.
-    pub async fn cleanup_old_package_versions(
-        &self,
-        repo_name: &str,
-        keep_versions: i32,
-    ) -> Result<i32> {
-        let deleted_count = self
-            .db
-            .cleanup_old_package_versions(repo_name, keep_versions)
-            .await
-            .context("Failed to cleanup old package versions")?;
-
-        log::info!("Cleaned up {deleted_count} old package versions from repository {repo_name}",);
-        Ok(deleted_count)
-    }
-
     /// Inserts or updates a repository.
     pub async fn insert_or_update_repository(
         &self,
@@ -231,20 +200,5 @@ impl PostgresqlHelper {
         }
 
         Ok(repositories)
-    }
-
-    /// Remove stale packages from the database.
-    pub async fn remove_stale_packages(
-        &self,
-        repo_name: &str,
-        stale_pkgs: &[String],
-    ) -> Result<()> {
-        for pkg_name in stale_pkgs {
-            if let Err(err) = self.db.remove_stale_package(repo_name, pkg_name).await {
-                log::error!("Failed to remove '{pkg_name}' from '{repo_name}: {err}");
-            }
-        }
-
-        Ok(())
     }
 }

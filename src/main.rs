@@ -210,7 +210,7 @@ async fn do_repo_update(
     // Update db if configured
     if let Some(ref pg) = pg_helper {
         let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
-        pg.remove_stale_packages(&repo_name, &stale_pkgs).await?;
+        pg.remove_packages(&repo_name, &stale_pkgs).await?;
         alpm_helper::add_pkgs_to_db(&profile.repo, pg, &new_pkgs).await?;
     }
 
@@ -516,7 +516,7 @@ async fn move_packages_from_repo_to_repo(
     // Update db if configured
     if let Some(ref pg) = pg_helper {
         let srcrepo_name = pkg_utils::get_repo_db_prefix(&src_profile.repo);
-        pg.remove_stale_packages(&srcrepo_name, &removal_pkgs).await?;
+        pg.remove_packages(&srcrepo_name, &removal_pkgs).await?;
         alpm_helper::add_pkgs_to_db(&dest_profile.repo, pg, &added_pkgs_files).await?;
     }
 

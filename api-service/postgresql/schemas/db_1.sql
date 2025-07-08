@@ -183,7 +183,7 @@ BEGIN
             (p.repo_name = ANY (_repo_filter) OR array_length(_repo_filter, 1) IS NULL) AND
             (p.pkg_arch = ANY (_arch_filter) OR array_length(_arch_filter, 1) IS NULL)
         ORDER BY
-            p.pkg_name;
+            p.pkg_builddate DESC;
 END;
 $$
 LANGUAGE plpgsql STABLE;

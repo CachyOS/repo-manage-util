@@ -1,6 +1,6 @@
 [package]
 name = "repo-manage-util"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Vladislav Nepogodin <vnepogodin@cachyos.org>"]
 edition = "2024"
 description = "A command-line utility for managing Arch Linux repositories"

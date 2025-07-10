@@ -85,7 +85,7 @@ jobs:
           cd ${{github.workspace}}/api-service/build/Debug/
           ulimit -n 4096
           sudo chown -R builder ..
-          ctest -V
+          sudo -u builder bash -c "ctest -V"
         shell: bash
 
       - name: Run clang-tidy

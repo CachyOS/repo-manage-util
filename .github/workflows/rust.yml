@@ -53,7 +53,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Run pg_impl migration
-        run: psql ${{env.DATABASE_URL}} -a -f pg_impl/migrations/001_init_schema.sql
+        run: psql ${{env.DATABASE_URL}} -a -f pg_impl/migrations/20250708113550_init.up.sql
 
       - name: Run cargo build
         uses: actions-rs/cargo@v1

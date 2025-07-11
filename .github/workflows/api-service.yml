@@ -66,24 +66,25 @@ jobs:
           export NM=llvm-nm
           export RANLIB=llvm-ranlib
 
-          ulimit -n 4096
-          chown -R builder .
-
           cd api-service
-          sudo -u builder bash -c "./setup_libpq.py $PWD"
-          sudo -u builder bash -c "./setup_userver.py $PWD"
+          ./setup_libpq.py $PWD
+          ./setup_userver.py $PWD
+          cd ..
         shell: bash
 
       - name: Configure & Build
         run: |
           cd api-service
-          sudo -u builder bash -c "./configure.sh -t=Debug -p=${{github.workspace}}/api-service/build --use_clang --enable_tests"
-          sudo -u builder bash -c "./build.sh"
+          ./configure.sh -t=Debug -p=${{github.workspace}}/api-service/build --use_clang --enable_tests
+          ./build.sh
         shell: bash
 
       - name: Run API tests
         run: |
+          sudo chown -R builder ${{github.workspace}}
           cd ${{github.workspace}}/api-service/build/Debug/
+          ulimit -n 4096
+          sudo chown -R builder ..
           sudo -u builder bash -c "ctest -V"
         shell: bash
 

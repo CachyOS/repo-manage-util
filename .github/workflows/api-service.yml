@@ -81,7 +81,7 @@ jobs:
 
       - name: Run API tests
         run: |
-          sudo chown -R builder ${{github.workspace}}
+          sudo chown -R builder .
           cd /tmp/api-service-build/Debug/
           sudo chown -R builder ..
           ulimit -n 4096

@@ -75,23 +75,23 @@ jobs:
       - name: Configure & Build
         run: |
           cd api-service
-          ./configure.sh -t=Debug -p=${{github.workspace}}/api-service/build --use_clang --enable_tests
+          ./configure.sh -t=Debug -p=/tmp/api-service-build --use_clang --enable_tests
           ./build.sh
         shell: bash
 
       - name: Run API tests
         run: |
           sudo chown -R builder ${{github.workspace}}
-          cd ${{github.workspace}}/api-service/build/Debug/
-          ulimit -n 4096
+          cd /tmp/api-service-build/Debug/
           sudo chown -R builder ..
+          ulimit -n 4096
           sudo -u builder bash -c "ctest -V"
         shell: bash
 
       - name: Run clang-tidy
         run: |
           cd api-service
-          clang-tidy -p ${{github.workspace}}/api-service/build/Debug src/*.cpp
+          clang-tidy -p /tmp/api-service-build/Debug src/*.cpp
         shell: bash
 
   check_clang_format:

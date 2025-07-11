@@ -84,6 +84,11 @@ jobs:
           sudo chown -R builder .
           cd /tmp/api-service-build/Debug/
           sudo chown -R builder ..
+
+          # should make it possible to access userfaultfd without obtaining CAP_SYS_PTRACE capability
+          if [ -e /proc/sys/vm/unprivileged_userfaultfd ]; then
+              echo 1 > /proc/sys/vm/unprivileged_userfaultfd
+          fi
           ulimit -n 4096
           sudo -u builder bash -c "ctest -V"
         shell: bash

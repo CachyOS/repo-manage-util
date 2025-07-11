@@ -66,8 +66,7 @@ jobs:
           export NM=llvm-nm
           export RANLIB=llvm-ranlib
 
-          ulimit -n 4096
-          chown -R builder ${{github.workspace}}
+          sudo chown -R builder .
 
           cd api-service
           sudo -u builder bash -c "./setup_libpq.py $PWD"
@@ -76,7 +75,7 @@ jobs:
 
       - name: Configure & Build
         run: |
-          chown -R builder ${{github.workspace}}
+          sudo chown -R builder .
 
           cd api-service
           sudo -u builder bash -c "./configure.sh -t=Debug -p=${{github.workspace}}/api-service/build --use_clang --enable_tests"
@@ -85,9 +84,9 @@ jobs:
 
       - name: Run API tests
         run: |
-          chown -R builder ${{github.workspace}}
+          sudo chown -R builder .
           cd ${{github.workspace}}/api-service/build/Debug/
-          sudo -u builder bash -c "ctest -V"
+          sudo -u builder bash -c "ulimit -n 4096 && ctest -V"
         shell: bash
 
       - name: Run clang-tidy

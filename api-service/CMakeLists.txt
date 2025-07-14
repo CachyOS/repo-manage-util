@@ -79,6 +79,17 @@ add_subdirectory(third_party/userver)
 set(USERVER_TESTSUITE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/userver/testsuite")
 set(POSTGRESQL_SERVICE_CONFIG_DIR "\"${PROJECT_SOURCE_DIR}/\"")
 
+# embed SQL file
+userver_add_sql_library(
+    ${PROJECT_NAME}_sql
+    NAMESPACE
+    service
+    OUTPUT_DIR
+    ${CMAKE_CURRENT_BINARY_DIR}
+    SQL_FILES
+    postgresql/schemas/*.sql
+)
+
 # Link this 'library' to set the c++ standard / compile-time options requested
 add_library(project_options INTERFACE)
 target_compile_features(project_options INTERFACE cxx_std_23)
@@ -107,7 +118,7 @@ enable_sanitizers(project_options)
 target_compile_definitions(${PROJECT_NAME} PRIVATE POSTGRESQL_SERVICE_CONFIG_DIR=${POSTGRESQL_SERVICE_CONFIG_DIR})
 target_compile_definitions(${PROJECT_NAME} PRIVATE NDEBUG)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE project_warnings project_options spdlog::spdlog fmt::fmt userver::core userver::postgresql libpqxx::pqxx pq::pq)
+target_link_libraries(${PROJECT_NAME} PRIVATE project_warnings project_options spdlog::spdlog fmt::fmt userver::core userver::postgresql ${PROJECT_NAME}_sql libpqxx::pqxx pq::pq)
 
 if(ENABLE_TESTING)
 userver_testsuite_add_simple(

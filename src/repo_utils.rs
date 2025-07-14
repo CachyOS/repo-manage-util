@@ -1,6 +1,11 @@
 use crate::config;
 
-use anyhow::Result;
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use anyhow::{Context, Result};
 use subprocess::{Exec, Redirection};
 
 // Calls repo-add on provided repo and package files
@@ -24,6 +29,9 @@ pub fn handle_repo_add(profile: &config::Profile, pkgfiles: &[String]) -> Result
         anyhow::bail!("repo-add failed!");
     }
     tracing::debug!("repo-add output:\n{proc_output}");
+
+    // update lastupdate date
+    set_repo_lastupdate(&profile.repo)?;
 
     Ok(())
 }
@@ -49,6 +57,27 @@ pub fn handle_repo_remove(profile: &config::Profile, pkgname_list: &[String]) ->
         anyhow::bail!("repo-remove failed!");
     }
     tracing::debug!("repo-remove output:\n{proc_output}");
+
+    // update lastupdate date
+    set_repo_lastupdate(&profile.repo)?;
+
+    Ok(())
+}
+
+fn set_repo_lastupdate(repo_db_path: &str) -> Result<()> {
+    let repo_dir = Path::new(repo_db_path).parent().unwrap();
+    let lastupdate_path = repo_dir.join("lastupdate");
+
+    let current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("SystemTime before UNIX EPOCH!")?
+        .as_micros()
+        .to_string();
+    let mut update_status_file =
+        File::create(lastupdate_path).context("failed to create/overwrite repo lastupdate")?;
+    update_status_file
+        .write_all(current_time.as_bytes())
+        .context("failed to write current time to lastupdate file")?;
 
     Ok(())
 }

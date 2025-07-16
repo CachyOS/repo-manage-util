@@ -23,7 +23,7 @@ export default async function fetcher<T>(
   responseMode: ResponseType = 'json'
 ): Promise<T> {
   return fetch(`${baseURL}${path}`, {
-    cache: 'no-store',
+    cache: 'force-cache',
     headers: {
       'Content-Type': 'application/json',
       'User-Agent':

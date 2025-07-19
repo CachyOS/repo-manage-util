@@ -1,5 +1,6 @@
 #include "package_handler.hpp"
 #include "packages_search_handler.hpp"
+#include "split_package_handler.hpp"
 
 #include <string>       // for string
 #include <string_view>  // for string_view
@@ -69,6 +70,7 @@ static auto create_service_component_list() noexcept
     return userver::components::MinimalServerComponentList()
         .Append<service::pg::PackageHandler>()
         .Append<service::pg::PackagesSearchHandler>()
+        .Append<service::pg::SplitPackageHandler>()
         .Append<userver::congestion_control::Component>()
         .Append<userver::components::Postgres>("repomanage-postgres-db-1")
         /* needed for testsuite */

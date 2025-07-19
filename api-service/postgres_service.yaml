@@ -46,6 +46,11 @@ components_manager:
             task_processor: main-task-processor
             method: GET
 
+        handler-split-package:
+            path: /api/v1/split/{repo}/{pkgbase}
+            task_processor: main-task-processor
+            method: GET
+
         repomanage-postgres-db-1:
             dbconnection: $db-connection
             dbconnection#env: DB_CONNECTION

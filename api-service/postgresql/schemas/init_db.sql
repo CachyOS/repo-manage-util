@@ -172,6 +172,25 @@ END;
 $$
 LANGUAGE plpgsql STABLE;
 
+CREATE OR REPLACE FUNCTION helper_schema.get_split_package(_repo_name text, _pkg_base text)
+        RETURNS SETOF helper_schema.brief_package
+        AS $$
+BEGIN
+        RETURN QUERY
+        SELECT p.pkg_name,
+               p.repo_name,
+               p.pkg_arch,
+               p.pkg_version,
+               p.pkg_desc,
+               extract(epoch from p.pkg_builddate)::INTEGER AS pkg_builddate
+        FROM packages p
+        WHERE
+            (p.repo_name = _repo_name) AND
+            (p.pkg_base = _pkg_base);
+END;
+$$
+LANGUAGE plpgsql STABLE;
+
 CREATE OR REPLACE FUNCTION helper_schema.get_brief_packages_with_filters(_repo_filter text[] = null, _arch_filter text[] = null)
         RETURNS SETOF helper_schema.brief_package
         AS $$

@@ -12,16 +12,16 @@ async def test_package(service_client):
 
     response = await get_package(service_client, 'day')
     assert response.status == 404
-    
+
     response = await get_package(service_client, 'repo2', 'x86_64', 'dolt')
     assert response.status == 404
-    
+
     response = await get_package(service_client, 'repo1', 'x86_64_v3', 'dolt')
     assert response.status == 404
 
     response = await get_package(service_client, 'repo1', 'x86_64', 'dolt1')
     assert response.status == 404
-    
+
     response = await get_package(service_client, 'repo1', 'x86_64', 'dolt')
     assert response.status == 200
     assert response.json()['package'] == dolt_package
@@ -47,13 +47,13 @@ async def test_search_packages(service_client):
     assert len(response.json()['packages']) == 1
     assert response.json()['total_pages'] == 1
     assert [pkg['pkg_name']+'+'+pkg['pkg_arch'] for pkg in response.json()['packages']] == ['dolt+x86_64']
-    
+
     response = await search_packages(service_client, 1, 100, 'dolt', 'repo1', 'x86_64')
     assert response.status == 200
     assert len(response.json()['packages']) == 1
     assert response.json()['total_pages'] == 1
     assert [pkg['pkg_name']+'+'+pkg['pkg_arch'] for pkg in response.json()['packages']] == ['dolt+x86_64']
-    
+
     response = await search_packages(service_client, 1, 100, 'dolt', 'repo1', 'x86_64_v3')
     assert response.status == 200
     assert len(response.json()['packages']) == 0
@@ -62,3 +62,21 @@ async def test_search_packages(service_client):
     response = await search_packages(service_client, query='a')
     assert response.status == 200
     assert len(response.json()['packages']) == 13
+
+@pytest.mark.pgsql('init_db', files=['initial_data.sql', 'split_data.sql'])
+async def test_split_packages(service_client):
+    response = await get_split_package(service_client, 'test1', 'opencv')
+    assert response.status == 404
+
+    response = await get_split_package(service_client, 'repo1', 'uv')
+    assert response.status == 404
+
+    response = await get_split_package(service_client, 'test1', 'godot')
+    assert response.status == 200
+    assert len(response.json()) == 2
+    assert [pkg['pkg_name'] for pkg in response.json()] == ['godot', 'godot-mono']
+
+    response = await get_split_package(service_client, 'test1', 'uv')
+    assert response.status == 200
+    assert len(response.json()) == 3
+    assert [pkg['pkg_name'] for pkg in response.json()] == ['python-uv', 'python-uv-build', 'uv']

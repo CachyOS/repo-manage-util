@@ -101,6 +101,7 @@ add_executable(api-postgresql-service
    src/http_utils.cpp
    src/package_utils.cpp
    src/package_handler.cpp
+   src/split_package_handler.cpp
    src/packages_search_handler.cpp
    src/main.cpp
    )

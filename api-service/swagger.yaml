@@ -98,6 +98,41 @@ paths:
                     $ref: '#/components/schemas/PackageDetails'
         '404':
           description: The requested package was not found.
+  /split/{repo}/{pkgbase}:
+    get:
+      summary: Get split packages for a package base
+      description: |
+        Retrieves all split packages for a given repository and package base.
+        Returns brief information for each split package (e.g., libvlc, vlc-cli, etc.).
+      parameters:
+        - name: repo
+          in: path
+          description: The name of the repository.
+          required: true
+          schema:
+            type: string
+          example: "my-stable-repo"
+        - name: pkgbase
+          in: path
+          description: The package base name.
+          required: true
+          schema:
+            type: string
+          example: "vlc"
+      responses:
+        '200':
+          description: A successful response containing the split packages.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  split_packages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BriefPackage'
+        '404':
+          description: The requested package base was not found.
 
 components:
   schemas:

@@ -46,6 +46,7 @@
 #include <userver/components/common_server_component_list.hpp>
 #include <userver/components/component.hpp>
 #include <userver/components/component_list.hpp>
+#include <userver/components/logging_configurator.hpp>
 #include <userver/components/minimal_server_component_list.hpp>
 #include <userver/congestion_control/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
@@ -79,7 +80,8 @@ static auto create_service_component_list() noexcept
         .Append<userver::components::TestsuiteSupport>()
         .Append<userver::server::handlers::TestsControl>()
         /* needed for testsuite */
-        .Append<userver::clients::dns::Component>();
+        .Append<userver::clients::dns::Component>()
+        .Append<userver::components::LoggingConfigurator>();
 }
 
 static auto create_table(std::string_view config_file_path, std::string_view config_vars_path) noexcept -> bool {

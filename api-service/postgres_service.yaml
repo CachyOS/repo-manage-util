@@ -28,6 +28,10 @@ components_manager:
                     level#fallback: info
                     overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
 
+        logging-configurator:
+            limited-logging-enable: true
+            limited-logging-interval: 1s
+
         dynamic-config:                      # Dynamic config storage options, do nothing
             defaults-path: $config-fallback
             fs-task-processor: fs-task-processor

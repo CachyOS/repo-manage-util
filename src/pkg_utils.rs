@@ -20,6 +20,13 @@ pub fn get_debug_packages(pkg_list: &[String]) -> Vec<String> {
     debug_pkgs
 }
 
+pub fn exclude_debug_pkgs(pkg_list: &mut Vec<String>) -> Vec<String> {
+    let debug_pkgs = get_debug_packages(pkg_list);
+    pkg_list.retain(|pkg| !debug_pkgs.contains(pkg));
+
+    debug_pkgs
+}
+
 pub fn get_outdated_pkgs(pkg_list: &[String]) -> Vec<String> {
     let mut pkg_map = get_pkgs_map(pkg_list);
 
@@ -418,6 +425,24 @@ mod tests {
             vec!["local_repo/x86_64/bcachefs-tools-debug-3:1.11.0-1.1-x86_64.pkg.tar.zst".into()];
 
         assert_eq!(debug_pkg_list, expected_debug_pkg_list);
+
+        let mut retained_pkgs_list = pkgs_list.clone();
+        let debug_pkg_list = exclude_debug_pkgs(&mut retained_pkgs_list);
+        assert_eq!(debug_pkg_list, expected_debug_pkg_list);
+
+        let expected_retained_pkgs_list: Vec<String> = vec![
+            "local_repo/x86_64/bcachefs-tools-3:1.11.0-1.1-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/cachyos-cli-installer-new-0.7.0-1-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/cachyos-cli-installer-new-0.7.0-2-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/cachyos-cli-installer-new-0.7.0-3-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/dolt-1.30.4-1.1-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/dwl-git-0.2.1.r34.2d9740c-1-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/dwm-6.2-4-x86_64.pkg.tar.zst".into(),
+            "local_repo/x86_64/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst".into(),
+            "local_repo/x86_64/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst".into(),
+            "local_repo/x86_64/st-0.8.4-2-x86_64.pkg.tar.zst".into(),
+        ];
+        assert_eq!(retained_pkgs_list, expected_retained_pkgs_list);
     }
 
     #[test]

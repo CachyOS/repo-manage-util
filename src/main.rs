@@ -82,8 +82,6 @@ async fn main() -> Result<()> {
             let repo_dir = get_repo_dir_from_profile(profile);
 
             do_repo_move_pkgs(profile, repo_dir, pg_helper).await?;
-            // TODO(vnepogodin): handle debug packages
-            // move them to debug folder if is set
         },
         Commands::IsPkgsUpToDate(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
@@ -303,6 +301,15 @@ async fn do_repo_move_pkgs(
         pkg_to_move_list.retain(|pkg| !already_in_repo.contains(pkg));
     }
 
+    // exclude debug packages if debug_dir is configured for the profile
+    let debug_pkgs =
+        if profile.debug_dir.is_some() && profile.debug_dir != Some(profile.repo.clone()) {
+            tracing::debug!("Separate debug dir is enabled, excluding debug packages");
+            pkg_utils::exclude_debug_pkgs(&mut pkg_to_move_list)
+        } else {
+            vec![]
+        };
+
     if let Err(pkg_move_err) = handle_pkgfiles_move(&pkg_to_move_list, repo_dir.to_str().unwrap()) {
         tracing::error!("Error occurred while moving package files: {pkg_move_err}");
         return Ok(());
@@ -312,6 +319,17 @@ async fn do_repo_move_pkgs(
     // TODO(vnepogodin): don't parse all packages in the repo,
     // we need to touch only packages which we move into
     do_repo_update(profile, repo_dir, pg_helper).await?;
+
+    // 2.1. move debug packages into the debug dir if configured
+    // TODO(vnepogodin): do debug specific repo update if configured
+    if !debug_pkgs.is_empty() {
+        if let Err(pkg_move_err) =
+            handle_pkgfiles_move(&debug_pkgs, profile.debug_dir.as_ref().unwrap())
+        {
+            tracing::error!("Error occurred while moving debug packages: {pkg_move_err}");
+            return Ok(());
+        }
+    }
 
     // report status only when had some work
     if !pkg_to_move_list.is_empty() {
@@ -380,6 +398,18 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
         }
     }
 
+    // 4. handle debug packages
+    if profile.debug_dir.is_some() && profile.debug_dir != Some(profile.repo.clone()) {
+        // should detect debug package which located in repo profile
+        let debug_pkgs = pkg_utils::get_debug_packages(&pkgs_list);
+        if !debug_pkgs.is_empty() {
+            for debug_pkg in debug_pkgs {
+                let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&debug_pkg);
+                tracing::info!("Found debug package in repo '{repo_db_prefix}': '{pkg_pair}'");
+            }
+        }
+    }
+
     tracing::info!("Repo checkup is done!");
 
     Ok(())
@@ -388,17 +418,20 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
 fn do_debug_packages_check(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
     // 1. check if we have debug repo assigned
     if profile.debug_dir.is_none() || profile.debug_dir == Some(profile.repo.clone()) {
-        tracing::info!("Separate debug repo is disabled for this profile");
+        tracing::debug!("Separate debug repo is disabled for this profile");
         return Ok(());
     }
 
     // NOTE: lets just move debug packages into the directory of the repo
     // don't touch the debug repo DB at all.
+    // let debug_repo_dir = Path::new(profile.debug_dir.as_ref().unwrap()).parent().unwrap();
 
     // 2. get all debug packages in the repo it self, to move them into the debug directory
-    let pkgs_list = glob::glob(&format!("{}/*-debug-*.pkg.tar.zst", repo_dir.to_str().unwrap()))?
-        .map(|x| x.unwrap().to_str().unwrap().to_owned())
-        .collect::<Vec<_>>();
+    let pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
+    let debug_pkgs = pkg_utils::get_debug_packages(&pkgs_list);
+    if debug_pkgs.is_empty() {
+        return Ok(());
+    }
 
     // // the debug_dir is the parent dir without the repo
     // if let Some(debug_dir) = &profile.debug_dir {
@@ -410,16 +443,12 @@ fn do_debug_packages_check(profile: &config::Profile, repo_dir: &Path) -> Result
     //     pkgs_list.append(&mut debug_pkgs_list);
     // }
 
-    // TODO(vnepogodin): make a prompt on every run here in case iteractive is on
-    for pkg_to_move in &pkgs_list
-    // .iter().map(|x| Path::new(x))
+    tracing::debug!("Found debug packages: {debug_pkgs:?}");
+    if let Err(pkg_move_err) =
+        handle_pkgfiles_move(&debug_pkgs, profile.debug_dir.as_ref().unwrap())
     {
-        let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(pkg_to_move);
-        tracing::debug!("Found debug package in repo: {pkg_pair}");
-        // tracing::debug!("Moving debug package into debug dir: {pkg_to_move}");
-        // if let Err(file_err) = fs::rename_file(filepath) {
-        //     tracing::error!("Failed to move the debug package '{filepath}': {file_err}");
-        // }
+        tracing::error!("Error occurred while moving debug packages: {pkg_move_err}");
+        return Ok(());
     }
 
     Ok(())

@@ -322,13 +322,12 @@ async fn do_repo_move_pkgs(
 
     // 2.1. move debug packages into the debug dir if configured
     // TODO(vnepogodin): do debug specific repo update if configured
-    if !debug_pkgs.is_empty() {
-        if let Err(pkg_move_err) =
+    if !debug_pkgs.is_empty()
+        && let Err(pkg_move_err) =
             handle_pkgfiles_move(&debug_pkgs, profile.debug_dir.as_ref().unwrap())
-        {
-            tracing::error!("Error occurred while moving debug packages: {pkg_move_err}");
-            return Ok(());
-        }
+    {
+        tracing::error!("Error occurred while moving debug packages: {pkg_move_err}");
+        return Ok(());
     }
 
     // report status only when had some work

@@ -34,3 +34,14 @@ def pgsql_local(service_source_dir, pgsql_local_create):
         [service_source_dir.joinpath('postgresql/schemas')],
     )
     return pgsql_local_create(list(databases.values()))
+
+@pytest.fixture(
+    autouse=True,
+    params=[0, 1],
+    ids=['pipeline_disabled', 'pipeline_enabled'],
+)
+async def pipeline_mode(request, service_client, dynamic_config):
+    dynamic_config.set_values({
+        'POSTGRES_CONNECTION_PIPELINE_EXPERIMENT': request.param,
+    })
+    await service_client.update_server_state()

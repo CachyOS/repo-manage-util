@@ -7,4 +7,5 @@ testsuite-enabled: false
 
 db-connection: 'postgresql://user:1234@localhost:5432/pg_repomanage'
 
+secdist-path: secure_data.json
 config-fallback: dynamic_config_fallback.json

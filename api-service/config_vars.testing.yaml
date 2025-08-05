@@ -7,4 +7,5 @@ testsuite-enabled: true
 
 db-connection: 'postgresql://testsuite@repo-postgres:15433/pg_repomanage'
 
+secdist-path: secure_data.json
 config-fallback: dynamic_config_fallback.json

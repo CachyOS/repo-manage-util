@@ -51,9 +51,11 @@
 #include <userver/congestion_control/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 #include <userver/server/handlers/ping.hpp>
+#include <userver/server/handlers/server_monitor.hpp>
 #include <userver/server/handlers/tests_control.hpp>
 #include <userver/storages/postgres/cluster.hpp>
 #include <userver/storages/postgres/component.hpp>
+#include <userver/storages/secdist/provider_component.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/daemon_run.hpp>
 
@@ -74,14 +76,16 @@ static auto create_service_component_list() noexcept
         .Append<service::pg::SplitPackageHandler>()
         .Append<userver::congestion_control::Component>()
         .Append<userver::components::Postgres>("repomanage-postgres-db-1")
+        .Append<userver::server::handlers::ServerMonitor>()
         /* needed for testsuite */
         .Append<userver::server::handlers::Ping>()
         .Append<userver::components::HttpClient>()
         .Append<userver::components::TestsuiteSupport>()
         .Append<userver::server::handlers::TestsControl>()
         /* needed for testsuite */
-        .Append<userver::clients::dns::Component>()
-        .Append<userver::components::LoggingConfigurator>();
+        .Append<userver::components::DefaultSecdistProvider>()
+        .Append<userver::components::LoggingConfigurator>()
+        .Append<userver::clients::dns::Component>();
 }
 
 static auto create_table(std::string_view config_file_path, std::string_view config_vars_path) noexcept -> bool {

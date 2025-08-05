@@ -34,11 +34,11 @@ RUN ./run_with_clang.sh "./setup_libpq.py $PWD" && ./run_with_clang.sh "./setup_
 # Configure & Build
 RUN ./configure.sh -t=Release --use_clang && ./build.sh
 
-RUN sudo cp ./build/Release/api-postgresql-service ./{postgres_service.yaml,dynamic_config_fallback.json,config_vars-docker.yaml} /
+RUN sudo cp ./build/Release/api-postgresql-service ./{postgres_service.yaml,dynamic_config_fallback.json,secure_data.json,config_vars-docker.yaml} /
 WORKDIR /
 RUN sudo rm -rf /app
 WORKDIR /app
-RUN sudo cp /{api-postgresql-service,postgres_service.yaml,dynamic_config_fallback.json,config_vars-docker.yaml} .
+RUN sudo cp /{api-postgresql-service,postgres_service.yaml,dynamic_config_fallback.json,secure_data.json,config_vars-docker.yaml} .
 
 RUN sudo chown -R builder:builder .
 

@@ -19,6 +19,10 @@ components_manager:
             thread_name: main-worker
             worker_threads: $worker-threads
             worker_threads#fallback: 4
+        monitor-task-processor:  # for monitoring
+            thread_name: mon-worker
+            worker_threads: $monitor_worker_threads
+            worker_threads#fallback: 1
     event_thread_pool:           # ev pools to deal with OS events
         threads: $event_threads
         threads#fallback: 2
@@ -88,8 +92,29 @@ components_manager:
                     in_buffer_size: 32768
                     requests_queue_size_threshold: 100
                 task_processor: main-task-processor
+            listener-monitor:
+                # Listen for developer/utility requests [required for handler-server-monitor]
+                port: $monitor-server-port
+                port#fallback: 8086
+                connection:
+                    in_buffer_size: 32768
+                    requests_queue_size_threshold: 100
+                task_processor: monitor-task-processor
             server-name: $server-name
         # /// [server listen]
+
+        # /// [secdist]
+        default-secdist-provider:
+            config: $secdist-path
+        # /// [secdist]
+
+        # /// [metrics]
+        handler-server-monitor:
+            path: /service/monitor
+            method: GET
+            task_processor: monitor-task-processor
+            format: prometheus
+        # /// [metrics]
 
         # /// [dynamic configs]
         dynamic-config:

@@ -1,67 +1,45 @@
 config_vars: config_vars.yaml
 
 components_manager:
-    task_processors:                  # Task processor is an executor for coroutine tasks
-
-        main-task-processor:          # Make a task processor for CPU-bound couroutine tasks.
-            worker_threads: $worker-threads         # Process tasks in 4 threads.
-            worker_threads#fallback: 4
-
-        fs-task-processor:            # Make a separate task processor for filesystem bound tasks.
-            worker_threads: $worker-fs-threads
-            worker_threads#fallback: 4
+    # /// [core]
+    coro_pool:
+        initial_size: $coro-pool-initial-size
+        initial_size#fallback: 4000
+        max_size: $coro-pool-max-size
+        max_size#fallback: 50000
 
     default_task_processor: main-task-processor  # Task processor in which components start.
 
-    components:                       # Configuring components that were registered via component_list
-        server:
-            listener:                 # configuring the main listening socket...
-                port: $server-port
-                task_processor: main-task-processor    # ...process incoming requests on this task processor.
+    task_processors:             # Task processor is an executor for coroutine tasks
+        fs-task-processor:       # for blocking operations
+            thread_name: fs-worker
+            worker_threads: $worker-fs-threads
+            worker_threads#fallback: 4
+        main-task-processor:     # for nonblocking operations
+            thread_name: main-worker
+            worker_threads: $worker-threads
+            worker_threads#fallback: 4
+    event_thread_pool:           # ev pools to deal with OS events
+        threads: $event_threads
+        threads#fallback: 2
+    # /// [core]
 
-        logging:
-            fs-task-processor: fs-task-processor
-            loggers:
-                default:
-                    file_path: '@stderr'
-                    level: $logger-level
-                    level#fallback: info
-                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+    components: # Configuring components that were registered via component_list
 
-        logging-configurator:
-            limited-logging-enable: true
-            limited-logging-interval: 1s
-
-        dynamic-config:                      # Dynamic config storage options, do nothing
-            defaults-path: $config-fallback
-            fs-task-processor: fs-task-processor
-
+        # /// [static config congestion-control]
         congestion-control:
             fake-mode: $testsuite-enabled
             load-enabled: true
+        # /// [static config congestion-control]
 
-        handler-package:
-            path: /api/v1/package/{repo}/{arch}/{pkgname}
-            task_processor: main-task-processor
+        # /// [testsuite only]
+        handler-ping:
+            load-enabled: $testsuite-enabled
+            path: /ping
             method: GET
-
-        handler-packages-search:
-            path: /api/v1/packages-search
             task_processor: main-task-processor
-            method: GET
-
-        handler-split-package:
-            path: /api/v1/split/{repo}/{pkgbase}
-            task_processor: main-task-processor
-            method: GET
-
-        repomanage-postgres-db-1:
-            dbconnection: $db-connection
-            dbconnection#env: DB_CONNECTION
-            blocking_task_processor: fs-task-processor
-            dns_resolver: async
-            sync-start: true
-            check-user-types: true
+            throttling_enabled: false
+            url_trailing_slash: strict-match
 
         http-client:
             load-enabled: $testsuite-enabled
@@ -76,15 +54,72 @@ components_manager:
             testpoint-url: mockserver/testpoint
             throttling_enabled: false
 
-        handler-ping:
-            load-enabled: $testsuite-enabled
-            path: /ping
-            method: GET
-            task_processor: main-task-processor
-            throttling_enabled: false
-            url_trailing_slash: strict-match
-
         testsuite-support:
+        # /// [testsuite only]
 
         dns-client:
             fs-task-processor: fs-task-processor
+
+        # /// [logging]
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: $logger-level
+                    level#fallback: info
+                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+
+        logging-configurator:
+            limited-logging-enable: true
+            limited-logging-interval: 1s
+        # /// [logging]
+
+        # /// [server listen]
+        server:
+            listener:
+                # If the service is behind nginx or some other local proxy, it is
+                # efficient to accepts incoming requests from unix-socket
+                #
+                # unix-socket: /var/run/production_service/service.socket
+                port: $server-port
+                port#fallback: 8085
+                connection:
+                    in_buffer_size: 32768
+                    requests_queue_size_threshold: 100
+                task_processor: main-task-processor
+            server-name: $server-name
+        # /// [server listen]
+
+        # /// [dynamic configs]
+        dynamic-config:
+            defaults-path: $config-fallback
+            fs-task-processor: fs-task-processor
+        # /// [dynamic configs]
+
+        # /// [our API endpoints]
+        handler-package:
+            path: /api/v1/package/{repo}/{arch}/{pkgname}
+            task_processor: main-task-processor
+            method: GET
+
+        handler-packages-search:
+            path: /api/v1/packages-search
+            task_processor: main-task-processor
+            method: GET
+
+        handler-split-package:
+            path: /api/v1/split/{repo}/{pkgbase}
+            task_processor: main-task-processor
+            method: GET
+        # /// [our API endpoints]
+
+        # /// [DB]
+        repomanage-postgres-db-1:
+            dbconnection: $db-connection
+            dbconnection#env: DB_CONNECTION
+            blocking_task_processor: fs-task-processor
+            dns_resolver: async
+            sync-start: true
+            check-user-types: true
+        # /// [DB]

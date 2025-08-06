@@ -110,7 +110,7 @@ components_manager:
 
         # /// [metrics]
         handler-server-monitor:
-            path: /service/monitor
+            path: /metrics
             method: GET
             task_processor: monitor-task-processor
             format: prometheus

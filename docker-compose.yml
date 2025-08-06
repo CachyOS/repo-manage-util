@@ -18,6 +18,17 @@ services:
         networks:
           - postgres
 
+    api-prometheus:
+        container_name: api-prometheus
+        image: prom/prometheus:latest
+        volumes:
+          - ./api-service/prometheus:/etc/prometheus/
+        ports:
+          - 9090:9090
+        restart: on-failure
+        networks:
+          - postgres
+
     api-postgresql-service:
         build: ./api-service
         container_name: api-postgresql-service

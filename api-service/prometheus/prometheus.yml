@@ -13,6 +13,5 @@ scrape_configs:
 
   - job_name: userver
     metrics_path: '/metrics'
-    scrape_interval: 5s
     static_configs:
       - targets: ['api-postgresql-service:8086']

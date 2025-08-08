@@ -67,14 +67,15 @@
     "prefixes": []
   },
   "USERVER_RPS_CCONTROL": {
-    "down-level": 1,
-    "down-rate-percent": 2,
+    "down-level": 8,
+    "down-rate-percent": 1,
+    "load-limit-crit-percent": 70,
     "min-limit": 10,
-    "no-limit-seconds": 1000,
-    "overload-off-seconds": 3,
-    "overload-on-seconds": 3,
+    "no-limit-seconds": 120,
+    "overload-off-seconds": 8,
+    "overload-on-seconds": 8,
     "up-level": 2,
-    "up-rate-percent": 2
+    "up-rate-percent": 1
   },
   "USERVER_RPS_CCONTROL_ACTIVATED_FACTOR_METRIC": 5,
   "USERVER_RPS_CCONTROL_CUSTOM_STATUS": {},

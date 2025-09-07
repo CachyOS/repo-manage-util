@@ -1,5 +1,5 @@
 diff --git a/cmake/UserverSetupEnvironment.cmake b/cmake/UserverSetupEnvironment.cmake
-index 7f1d52c4e..0e65f749b 100644
+index 351a34627..80fd551fa 100644
 --- a/cmake/UserverSetupEnvironment.cmake
 +++ b/cmake/UserverSetupEnvironment.cmake
 @@ -18,14 +18,6 @@ function(_userver_setup_environment_validate_impl)
@@ -106,7 +106,7 @@ index b5bd233d9..1c19de1e6 100644
  target_compile_options(${PROJECT_NAME} PUBLIC -Wno-ignored-attributes -Wno-pedantic)
  
 diff --git a/rabbitmq/CMakeLists.txt b/rabbitmq/CMakeLists.txt
-index 5d7829d85..f96bc0a87 100644
+index a67b39d2b..94e65567c 100644
 --- a/rabbitmq/CMakeLists.txt
 +++ b/rabbitmq/CMakeLists.txt
 @@ -3,7 +3,7 @@ project(userver-rabbitmq CXX)
@@ -132,7 +132,7 @@ index ba7bc4c58..328b10cdc 100644
  if("addr" IN_LIST SANITIZERS_LIST)
      target_compile_definitions(${PROJECT_NAME} PUBLIC "BOOST_USE_ASAN")
 diff --git a/universal/CMakeLists.txt b/universal/CMakeLists.txt
-index c93ca019c..12e82e267 100644
+index d0f4d96ff..ac017e3f2 100644
 --- a/universal/CMakeLists.txt
 +++ b/universal/CMakeLists.txt
 @@ -9,7 +9,7 @@ if(TARGET userver-core)

@@ -45,6 +45,11 @@ components_manager:
             task_processor: main-task-processor
             method: GET
 
+        handler-package-files:
+            path: /api/v1/package/{repo}/{arch}/{pkgname}/files
+            task_processor: main-task-processor
+            method: GET
+
         handler-packages-search:
             path: /api/v1/packages-search
             task_processor: main-task-processor

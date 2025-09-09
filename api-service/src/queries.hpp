@@ -9,6 +9,11 @@ SELECT * FROM helper_schema.get_package($1, $2, $3);
 )~",
     userver::storages::postgres::Query::Name{"select-package-query"}};
 
+inline const userver::storages::postgres::Query kSelectPackageFiles{R"~(
+SELECT * FROM helper_schema.get_package_files($1, $2, $3);
+)~",
+    userver::storages::postgres::Query::Name{"select-package-files-query"}};
+
 inline const userver::storages::postgres::Query kSelectSplitPackage{R"~(
 SELECT * FROM helper_schema.get_split_package($1, $2);
 )~",

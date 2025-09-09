@@ -156,6 +156,21 @@ END;
 $$
 LANGUAGE plpgsql STABLE;
 
+CREATE OR REPLACE FUNCTION helper_schema.get_package_files(_repo_name text, _pkg_arch text, _pkg_name text)
+        RETURNS SETOF TEXT[]
+        AS $$
+BEGIN
+        RETURN QUERY
+        SELECT p.pkg_files
+        FROM packages p
+        WHERE
+            (p.repo_name = _repo_name) AND
+            (p.pkg_arch = _pkg_arch) AND
+            (p.pkg_name = _pkg_name);
+END;
+$$
+LANGUAGE plpgsql STABLE;
+
 CREATE OR REPLACE FUNCTION helper_schema.get_brief_packages()
         RETURNS SETOF helper_schema.brief_package
         AS $$

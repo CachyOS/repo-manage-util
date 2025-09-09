@@ -1,3 +1,4 @@
+#include "package_files_handler.hpp"
 #include "package_handler.hpp"
 #include "packages_search_handler.hpp"
 #include "split_package_handler.hpp"
@@ -72,6 +73,7 @@ static auto create_service_component_list() noexcept
     -> userver::components::ComponentList {
     return userver::components::MinimalServerComponentList()
         .Append<service::pg::PackageHandler>()
+        .Append<service::pg::PackageFilesHandler>()
         .Append<service::pg::PackagesSearchHandler>()
         .Append<service::pg::SplitPackageHandler>()
         .Append<userver::congestion_control::Component>()

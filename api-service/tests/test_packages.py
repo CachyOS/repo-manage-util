@@ -22,9 +22,16 @@ async def test_package(service_client):
     response = await get_package(service_client, 'repo1', 'x86_64', 'dolt1')
     assert response.status == 404
 
+    response = await get_package_files(service_client, 'repo1', 'x86_64', 'dolt1')
+    assert response.status == 404
+
     response = await get_package(service_client, 'repo1', 'x86_64', 'dolt')
     assert response.status == 200
     assert response.json()['package'] == dolt_package
+
+    response = await get_package_files(service_client, 'repo1', 'x86_64', 'dolt')
+    assert response.status == 200
+    assert response.json() == dolt_package['pkg_files']
 
 @pytest.mark.pgsql('init_db', files=['initial_data.sql'])
 async def test_search_packages(service_client):

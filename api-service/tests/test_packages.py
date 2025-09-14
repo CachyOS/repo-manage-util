@@ -3,7 +3,8 @@ import pytest
 from testsuite.databases import pgsql
 from endpoints import *
 
-dolt_package = {'repo_name': 'repo1', 'pkg_name': 'dolt', 'pkg_version': '1.30.5-1.1', 'pkg_base': 'dolt', 'pkg_desc': 'Git for data! A version controlled relational database', 'pkg_groups': [], 'pkg_url': 'https://www.dolthub.com', 'pkg_license': ['Apache'], 'pkg_arch': 'x86_64', 'pkg_builddate': 1704385114, 'pkg_packager': 'CachyOS <admin@cachyos.org>', 'pkg_csize': 18527187, 'pkg_isize': 93412792, 'pkg_sha256sum': '36f26a9a520800f3a2c577f07334ca1c209bcd3ac6c457108abd417ec242d299', 'pkg_pgpsig': None, 'pkg_replaces': [], 'pkg_depends': ['glibc'], 'pkg_optdepends': [], 'pkg_makedepends': ['go'], 'pkg_checkdepends': [], 'pkg_conflicts': [], 'pkg_provides': [], 'pkg_files': 'usr/,usr/bin/,usr/bin/dolt'.split(','), 'updated': 1751364311}
+dolt_package = {'repo_name': 'repo1', 'pkg_name': 'dolt', 'pkg_version': '1.30.5-1.1', 'pkg_base': 'dolt', 'pkg_desc': 'Git for data! A version controlled relational database', 'pkg_groups': [], 'pkg_url': 'https://www.dolthub.com', 'pkg_license': ['Apache'], 'pkg_arch': 'x86_64', 'pkg_builddate': 1704385114, 'pkg_packager': 'CachyOS <admin@cachyos.org>', 'pkg_csize': 18527187, 'pkg_isize': 93412792, 'pkg_sha256sum': '36f26a9a520800f3a2c577f07334ca1c209bcd3ac6c457108abd417ec242d299', 'pkg_pgpsig': None, 'pkg_replaces': [], 'pkg_depends': ['glibc'], 'pkg_optdepends': [], 'pkg_makedepends': ['go'], 'pkg_checkdepends': [], 'pkg_conflicts': [], 'pkg_provides': [], 'pkg_files': [], 'updated': 1751364311}
+dolt_pkgfiles = 'usr/,usr/bin/,usr/bin/dolt'.split(',')
 
 @pytest.mark.pgsql('init_db', files=['initial_data.sql'])
 async def test_package(service_client):
@@ -31,7 +32,7 @@ async def test_package(service_client):
 
     response = await get_package_files(service_client, 'repo1', 'x86_64', 'dolt')
     assert response.status == 200
-    assert response.json() == dolt_package['pkg_files']
+    assert response.json() == dolt_pkgfiles
 
 @pytest.mark.pgsql('init_db', files=['initial_data.sql'])
 async def test_search_packages(service_client):

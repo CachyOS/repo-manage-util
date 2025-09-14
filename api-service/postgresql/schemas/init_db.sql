@@ -145,7 +145,7 @@ BEGIN
                p.pkg_checkdepends,
                p.pkg_conflicts,
                p.pkg_provides,
-               p.pkg_files,
+               ARRAY[]::TEXT[] as pkg_files,
                extract(epoch from p.updated)::INTEGER AS updated
         FROM packages p
         WHERE

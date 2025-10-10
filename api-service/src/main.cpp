@@ -124,7 +124,7 @@ static auto create_table(std::string_view config_file_path, std::string_view con
         spdlog::trace("Finished initiating PostgreSQL DB connection");
 
         pqxx::work txn(connection);
-        txn.exec(service::sql::kInitDb.Statement());
+        txn.exec(std::string{service::sql::kInitDb.GetStatementView()});
         txn.commit();
     } catch (const std::exception& ex) {
         spdlog::error("Failed to connect to the database. what='{}'", ex.what());

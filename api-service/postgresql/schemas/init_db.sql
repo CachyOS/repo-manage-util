@@ -2,6 +2,42 @@ CREATE SCHEMA IF NOT EXISTS helper_schema;
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+DO $$
+BEGIN
+IF NOT EXISTS (select 1 from pg_type where typname = 'package_metadata' AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'helper_schema')) then
+    CREATE TYPE helper_schema.package_metadata AS (
+        pkg_base      TEXT,
+        pkg_desc      TEXT,
+        pkg_groups    TEXT[],
+        pkg_url       TEXT,
+        pkg_license   TEXT[],
+        pkg_arch      TEXT,
+        pkg_builddate TIMESTAMPTZ,
+        pkg_packager  TEXT,
+        pkg_csize     BIGINT,
+        pkg_isize     BIGINT,
+        pkg_sha256sum TEXT,
+        pkg_pgpsig    TEXT
+    );
+END IF;
+END $$;
+
+DO $$
+BEGIN
+IF NOT EXISTS (select 1 from pg_type where typname = 'package_dependencies' AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'helper_schema')) then
+    CREATE TYPE helper_schema.package_dependencies AS (
+        pkg_replaces   TEXT[],
+        pkg_depends    TEXT[],
+        pkg_optdepends TEXT[],
+        pkg_makedepends TEXT[],
+        pkg_checkdepends TEXT[],
+        pkg_conflicts  TEXT[],
+        pkg_provides   TEXT[],
+        pkg_files      TEXT[]
+    );
+END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS repositories (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     repo_name  TEXT UNIQUE NOT NULL,
@@ -145,7 +181,7 @@ BEGIN
                p.pkg_checkdepends,
                p.pkg_conflicts,
                p.pkg_provides,
-               p.pkg_files,
+               ARRAY[]::TEXT[] as pkg_files,
                extract(epoch from p.updated)::INTEGER AS updated
         FROM packages p
         WHERE

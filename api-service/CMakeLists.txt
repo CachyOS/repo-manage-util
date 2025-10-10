@@ -22,6 +22,7 @@ include(StaticAnalyzers)
 include(Sanitizers)
 include(CPM)
 
+find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 # NOTE: hack to make userver find correct openssl dependencies
 find_package(OpenSSL REQUIRED)
@@ -31,6 +32,12 @@ add_subdirectory(third_party/postgresql)
 
 add_compile_options(-I${CMAKE_SOURCE_DIR}/third_party/postgresql/src/include -I${CMAKE_SOURCE_DIR}/third_party/postgresql -I${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq)
 include_directories(${CMAKE_SOURCE_DIR}/third_party/postgresql/src/include ${CMAKE_SOURCE_DIR}/third_party/postgresql ${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq)
+
+pkg_check_modules(
+  LIBALPM
+  REQUIRED
+  IMPORTED_TARGET
+  libalpm>=13.0.0)
 
 CPMAddPackage(
   NAME fmt
@@ -48,6 +55,12 @@ CPMAddPackage(
   NAME libpqxx
   GITHUB_REPOSITORY jtv/libpqxx
   GIT_TAG 9dd71102e1f3e10b0f14eed253873ee6ce2a4880
+  EXCLUDE_FROM_ALL YES
+)
+CPMAddPackage(
+  NAME Corrosion
+  GITHUB_REPOSITORY corrosion-rs/corrosion
+  GIT_TAG v0.5.2
   EXCLUDE_FROM_ALL YES
 )
 
@@ -104,7 +117,19 @@ add_executable(api-postgresql-service
    src/package_files_handler.cpp
    src/split_package_handler.cpp
    src/packages_search_handler.cpp
+   src/diff_checker.cpp
+   src/arch_repo_checker.cpp
    src/main.cpp
+   )
+
+add_executable(arch-diff
+   src/diff_checker.cpp
+   src/arch_repo_checker.cpp
+   src/arch-diff.cpp
+   )
+
+add_library(${PROJECT_NAME}_rustutils
+   src/diff_component_rust.hpp src/diff_component_rust.cpp
    )
 
 # Link this 'library' to use the warnings specified in CompilerWarnings.cmake
@@ -117,10 +142,16 @@ configure_linker(project_options)
 # sanitizer options if supported by compiler
 enable_sanitizers(project_options)
 
+corrosion_import_crate(MANIFEST_PATH "backend-rustlib/Cargo.toml" FLAGS "${CARGO_FLAGS}")
+corrosion_add_cxxbridge(backend-rustlib-cxxbridge CRATE backend_rustlib FILES lib.rs)
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE POSTGRESQL_SERVICE_CONFIG_DIR=${POSTGRESQL_SERVICE_CONFIG_DIR})
 target_compile_definitions(${PROJECT_NAME} PRIVATE NDEBUG)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE project_warnings project_options spdlog::spdlog fmt::fmt userver::core userver::postgresql ${PROJECT_NAME}_sql libpqxx::pqxx pq::pq)
+target_include_directories(backend-rustlib-cxxbridge PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/backend-rustlib/src)
+target_link_libraries(${PROJECT_NAME} PRIVATE project_warnings project_options spdlog::spdlog fmt::fmt userver::core userver::postgresql backend-rustlib-cxxbridge ${PROJECT_NAME}_rustutils ${PROJECT_NAME}_sql libpqxx::pqxx pq::pq)
+target_link_libraries(arch-diff PRIVATE project_warnings project_options fmt::fmt userver::core userver::postgresql backend-rustlib-cxxbridge ${PROJECT_NAME}_rustutils ${PROJECT_NAME}_sql libpqxx::pqxx pq::pq)
+target_link_libraries(${PROJECT_NAME}_rustutils PRIVATE project_warnings project_options userver::core userver::postgresql backend-rustlib-cxxbridge PkgConfig::LIBALPM)
 
 if(ENABLE_TESTING)
 userver_testsuite_add_simple(

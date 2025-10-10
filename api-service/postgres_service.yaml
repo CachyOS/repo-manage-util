@@ -11,6 +11,9 @@ components_manager:
             worker_threads: $worker-fs-threads
             worker_threads#fallback: 4
 
+        period-task-processor:
+            worker_threads: 1
+
     default_task_processor: main-task-processor  # Task processor in which components start.
 
     components:                       # Configuring components that were registered via component_list
@@ -59,6 +62,11 @@ components_manager:
             path: /api/v1/split/{repo}/{pkgbase}
             task_processor: main-task-processor
             method: GET
+
+        arch-repo-checker:
+            load-enabled: $enabled-without-testsuite
+            blocking_task_processor: period-task-processor
+            update-period: 3600 # 1h
 
         repomanage-postgres-db-1:
             dbconnection: $db-connection

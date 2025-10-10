@@ -1,3 +1,4 @@
+#include "arch_repo_checker.hpp"
 #include "package_files_handler.hpp"
 #include "package_handler.hpp"
 #include "packages_search_handler.hpp"
@@ -74,6 +75,7 @@ static auto create_service_component_list() noexcept
         .Append<service::pg::PackageFilesHandler>()
         .Append<service::pg::PackagesSearchHandler>()
         .Append<service::pg::SplitPackageHandler>()
+        .Append<service::alpm::ArchRepoCheckerComponent>()
         .Append<userver::congestion_control::Component>()
         .Append<userver::components::Postgres>("repomanage-postgres-db-1")
         /* needed for testsuite */

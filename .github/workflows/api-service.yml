@@ -35,7 +35,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm \
           cmake pkg-config ninja meson clang lld llvm libc++ python boost boost-libs libbsd tcl libxml2 util-linux zlib git sudo ccache \
-          python-virtualenv python-jinja python-voluptuous python-yaml crypto++ yaml-cpp c-ares http-parser libev libnghttp2 \
+          python-virtualenv python-jinja python-voluptuous python-yaml crypto++ yaml-cpp c-ares libev libnghttp2 \
           postgresql postgresql-libs
         shell: bash
 
@@ -50,6 +50,7 @@ jobs:
 
           cd /tmp
           sudo -u builder bash -c "git clone https://aur.archlinux.org/cctz.git && cd cctz && makepkg --rmdeps -sicf --cleanbuild --noconfirm --noprogressbar --nocheck"
+          sudo -u builder bash -c "git clone https://gitlab.archlinux.org/archlinux/packaging/packages/http-parser.git && cd http-parser && makepkg --rmdeps -sicf --cleanbuild --noconfirm --noprogressbar --nocheck"
         shell: bash
 
       - name: ccache

@@ -197,7 +197,7 @@ CREATE OR REPLACE FUNCTION helper_schema.get_package_files(_repo_name text, _pkg
         AS $$
 BEGIN
         RETURN QUERY
-        SELECT p.pkg_files
+        SELECT COALESCE(p.pkg_files, ARRAY[]::TEXT[])
         FROM packages p
         WHERE
             (p.repo_name = _repo_name) AND

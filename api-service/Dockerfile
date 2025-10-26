@@ -4,7 +4,7 @@ FROM archlinux:base-devel as builder
 RUN pacman -Syu --noconfirm --noprogressbar --needed \
     git python cmake ninja clang llvm lld boost boost-libs libbsd tcl libxml2 util-linux zlib \
     sudo crypto++ yaml-cpp c-ares libev python-jinja \
-    libnghttp2 postgresql meson pkg-config
+    libnghttp2 postgresql meson pkg-config rust
 
 # Add the repository key
 RUN pacman-key --init && \

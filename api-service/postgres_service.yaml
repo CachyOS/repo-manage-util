@@ -24,6 +24,8 @@ components_manager:
             worker_threads: $monitor_worker_threads
             worker_threads#fallback: 1
         period-task-processor:
+            thread_name: pd-worker
+            os-scheduling: idle
             worker_threads: 1
     event_thread_pool:           # ev pools to deal with OS events
         threads: $event_threads

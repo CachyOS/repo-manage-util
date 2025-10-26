@@ -4,6 +4,7 @@ logger-level: info
 server-port: 5862
 
 testsuite-enabled: false
+enabled-without-testsuite: true
 
 db-connection: 'postgresql://user:1234@localhost:5432/pg_repomanage'
 

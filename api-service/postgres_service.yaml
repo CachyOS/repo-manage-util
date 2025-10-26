@@ -13,6 +13,8 @@ components_manager:
 
         period-task-processor:
             worker_threads: 1
+            os-scheduling: idle
+            thread_name: pd-worker
 
     default_task_processor: main-task-processor  # Task processor in which components start.
 

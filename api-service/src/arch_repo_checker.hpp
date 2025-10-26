@@ -60,6 +60,7 @@ class ArchRepoCheckerComponent final : public userver::components::ComponentBase
 
  private:
     void StartUpdateTask();
+    void RunUpdateTask() noexcept;
 
     const std::chrono::seconds update_period_;
     userver::engine::TaskProcessor& blocking_task_processor_;

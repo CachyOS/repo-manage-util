@@ -57,23 +57,26 @@ ArchRepoCheckerComponent::ArchRepoCheckerComponent(const userver::components::Co
 
 void ArchRepoCheckerComponent::StartUpdateTask() {
     LOG_INFO() << "Start task for archrepo periodic updates";
-    const userver::utils::PeriodicTask::Settings periodic_settings{update_period_};
-    update_task_.Start("archrepo_update", periodic_settings, [this]() {
-        try {
-            auto data_ptr = diff_component_.Lock();
-            if (!data_ptr->refresh_handles()) {
-                LOG_ERROR() << "Failed to init ALPM handles";
-                return;
-            }
+    userver::utils::PeriodicTask::Settings periodic_settings{update_period_};
+    periodic_settings.task_processor = &blocking_task_processor_;
+    update_task_.Start("archrepo-update", periodic_settings, [this] { RunUpdateTask(); });
+}
 
-            data_ptr->run_check();
-            if (!data_ptr->update_local_copy()) {
-                LOG_ERROR() << "Failed to update local db copy";
-            }
-        } catch (const std::exception& ex) {
-            LOG_ERROR() << "ArchRepo checker failed: " << ex;
+void ArchRepoCheckerComponent::RunUpdateTask() noexcept {
+    try {
+        auto data_ptr = diff_component_.Lock();
+        if (!data_ptr->refresh_handles()) {
+            LOG_ERROR() << "Failed to init ALPM handles";
+            return;
         }
-    });
+
+        data_ptr->run_check();
+        if (!data_ptr->update_local_copy()) {
+            LOG_ERROR() << "Failed to update local db copy";
+        }
+    } catch (const std::exception& ex) {
+        LOG_ERROR() << "ArchRepo checker failed: " << ex;
+    }
 }
 
 userver::yaml_config::Schema ArchRepoCheckerComponent::GetStaticConfigSchema() {

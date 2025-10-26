@@ -36,7 +36,7 @@ jobs:
           pacman -Syu --noconfirm \
           cmake pkg-config ninja meson clang lld llvm libc++ python boost boost-libs libbsd tcl libxml2 util-linux zlib git sudo ccache \
           python-virtualenv python-jinja python-voluptuous python-yaml crypto++ yaml-cpp c-ares libev libnghttp2 \
-          postgresql postgresql-libs
+          postgresql postgresql-libs rust
         shell: bash
 
       - name: Create builder user and install dependency

@@ -27,6 +27,7 @@
 #include <userver/formats/json_fwd.hpp>
 #include <userver/storages/postgres/io/io_fwd.hpp>
 #include <userver/storages/postgres/io/pg_types.hpp>
+#include <userver/storages/postgres/io/chrono.hpp>
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -77,6 +78,53 @@ struct PublicPackageRow {
     std::int64_t updated;
 };
 
+/// @brief Represents an ALPM package with its base name, name, and version.
+struct PackageMetadata {
+    /// @brief The base name of the package (e.g., "linux" for "linux-5.10.1-1").
+    std::optional<std::string> pkg_base;
+    /// @brief A short description of the package.
+    std::optional<std::string> pkg_desc;
+    /// @brief A list of groups the package belongs to.
+    std::optional<std::vector<std::string>> pkg_groups;
+    /// @brief The upstream URL for the package.
+    std::optional<std::string> pkg_url;
+    /// @brief A list of licenses under which the package is distributed.
+    std::optional<std::vector<std::string>> pkg_license;
+    /// @brief The architecture the package is built for (e.g., "x86_64", "any").
+    std::optional<std::string> pkg_arch;
+    /// @brief The date and time the package was built.
+    std::optional<userver::storages::postgres::TimePointTz> pkg_builddate;
+    /// @brief The name and email of the package maintainer.
+    std::optional<std::string> pkg_packager;
+    /// @brief The compressed size of the package in bytes.
+    std::optional<std::int64_t> pkg_csize;
+    /// @brief The installed size of the package in bytes.
+    std::optional<std::int64_t> pkg_isize;
+    /// @brief The SHA-256 checksum of the package file.
+    std::optional<std::string> pkg_sha256sum;
+    /// @brief The PGP signature of the package file.
+    std::optional<std::string> pkg_pgpsig;
+};
+
+struct PackageDependencies {
+    /// A list of packages that this package replaces.
+    std::optional<std::vector<std::string>> pkg_replaces;
+    /// A list of packages required by this package to run.
+    std::optional<std::vector<std::string>> pkg_depends;
+    /// A list of optional dependencies for this package.
+    std::optional<std::vector<std::string>> pkg_optdepends;
+    /// A list of packages required to build this package from source.
+    std::optional<std::vector<std::string>> pkg_makedepends;
+    /// A list of packages required to run the test suite for this package.
+    std::optional<std::vector<std::string>> pkg_checkdepends;
+    /// A list of packages that conflict with this package.
+    std::optional<std::vector<std::string>> pkg_conflicts;
+    /// A list of virtual packages provided by this package.
+    std::optional<std::vector<std::string>> pkg_provides;
+    /// A list of important files included in the package.
+    std::optional<std::vector<std::string>> pkg_files;
+};
+
 userver::formats::json::Value Serialize(
     const BriefPackageRow& row,
     userver::formats::serialize::To<userver::formats::json::Value>);
@@ -100,5 +148,13 @@ struct CppToUserPg<service::pg::utils::BriefPackagePageResultRow> {
 template <>
 struct CppToUserPg<service::pg::utils::PublicPackageRow> {
     static constexpr DBTypeName postgres_name = "helper_schema.public_package";
+};
+template <>
+struct CppToUserPg<service::pg::utils::PackageMetadata> {
+    static constexpr DBTypeName postgres_name = "helper_schema.package_metadata";
+};
+template <>
+struct CppToUserPg<service::pg::utils::PackageDependencies> {
+    static constexpr DBTypeName postgres_name = "helper_schema.package_dependencies";
 };
 }  // namespace userver::storages::postgres::io

@@ -4,6 +4,7 @@
 api-service/third_party
 api-service/build
 api-service/build.sh
+api-service/backend-rustlib/target
 /**/__pycache__/
 **/*.tar
 README.md

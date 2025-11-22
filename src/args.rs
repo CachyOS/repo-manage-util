@@ -63,6 +63,8 @@ pub(crate) enum Commands {
     CleanupBackupDir(SingleProfileCli),
     // Check if we have only certain amount of debug packages in the debug repository
     // IsDebugPkgsOk, // ok maybe not implemented
+    /// Pulls outdated packages from AUR with generated build order
+    Aur(SingleProfileCli),
 }
 
 #[cfg(test)]

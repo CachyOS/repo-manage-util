@@ -1,5 +1,6 @@
 mod alpm_helper;
 mod args;
+mod aur;
 mod config;
 mod logger;
 mod pg_types;
@@ -109,6 +110,12 @@ async fn main() -> Result<()> {
                 pg_helper,
             )
             .await?;
+        },
+        Commands::Aur(args) => {
+            let profile = get_profile_from_config(&args.profile, &config)?;
+            let repo_dir = get_repo_dir_from_profile(profile);
+
+            do_repo_aur(repo_dir).await?;
         },
     }
 
@@ -410,6 +417,30 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
     }
 
     tracing::info!("Repo checkup is done!");
+
+    Ok(())
+}
+
+async fn do_repo_aur(repo_dir: &Path) -> Result<()> {
+    // NOTE: looks ugly, but we only need db pair
+    let pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
+    let new_pkgs = pkgs_list
+        .iter()
+        .map(|x| {
+            let filename = Path::new(x).file_name().unwrap().to_str().unwrap();
+            let pkgname = pkg_utils::get_pkgname_from_filename(filename).to_owned();
+            let pkgver = pkg_utils::get_pkgver_from_filename(filename).to_owned();
+            (pkgname, pkgver)
+        })
+        .collect::<Vec<_>>();
+
+    let new_aur_pkgs =
+        aur::get_new_aur_pkgs(&new_pkgs).await.context("Failed to get new AUR pkgs")?;
+    for new_pkg in new_aur_pkgs {
+        tracing::info!("Found new AUR package: '{}-{}'", new_pkg.name, new_pkg.version);
+
+        // TODO(vnepogodin): do actual pulling using pkg-manage-util crate
+    }
 
     Ok(())
 }

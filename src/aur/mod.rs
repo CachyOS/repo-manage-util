@@ -1,3 +1,5 @@
+mod dep_graph;
+
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 
@@ -34,8 +36,13 @@ pub struct Package {
     pub check_depends: Vec<String>,
 }
 
+pub struct PackageSummary {
+    pub new_pkgs: Vec<Package>,
+    pub build_order: Vec<String>,
+}
+
 // Gets list of local AUR packages eligible for the update
-pub async fn get_new_aur_pkgs(pkg_list: &[(String, String)]) -> Result<Vec<Package>> {
+pub async fn get_new_aur_pkgs(pkg_list: &[(String, String)]) -> Result<PackageSummary> {
     let aur_pkgs = fetch_snapshot().await?;
 
     let aur_map: HashMap<String, Package> =
@@ -51,7 +58,17 @@ pub async fn get_new_aur_pkgs(pkg_list: &[(String, String)]) -> Result<Vec<Packa
         }
     }
 
-    Ok(new_pkgs)
+    // calculate dep graph
+    let targets: Vec<String> = new_pkgs.iter().map(|x| x.name.clone()).collect();
+    let build_graph = dep_graph::build_dependency_graph(&targets, &aur_map)
+        .context("Failed to build dep graph")?;
+    let build_order =
+        dep_graph::calculate_build_order(&build_graph).context("Failed to calc order")?;
+    tracing::debug!("Build graph {build_graph:?}");
+
+    // NOTE(vnepogodin): should we filter out packages which don't need update?
+
+    Ok(PackageSummary { new_pkgs, build_order })
 }
 
 pub async fn fetch_snapshot() -> Result<Vec<Package>> {

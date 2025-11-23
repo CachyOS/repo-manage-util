@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 
 #[derive(Parser, PartialEq, Debug)]
@@ -45,6 +47,21 @@ pub(crate) struct FromToProfileCli {
 }
 
 #[derive(Parser, PartialEq, Debug)]
+pub(crate) struct ProfileAurCli {
+    /// Profile to use from the configuration file
+    #[clap(from_global)]
+    pub profile: String,
+
+    /// Build order based on dependency tree into a file
+    #[arg(short, long, value_name = "FILE")]
+    pub order_file: Option<PathBuf>,
+
+    /// Dry run (without downloading sources)
+    #[arg(short = 'n', long)]
+    pub dry_run: bool,
+}
+
+#[derive(Parser, PartialEq, Debug)]
 pub(crate) enum Commands {
     /// Reset the repository
     Reset(SingleProfileCli),
@@ -64,7 +81,7 @@ pub(crate) enum Commands {
     // Check if we have only certain amount of debug packages in the debug repository
     // IsDebugPkgsOk, // ok maybe not implemented
     /// Pulls outdated packages from AUR with generated build order
-    Aur(SingleProfileCli),
+    Aur(ProfileAurCli),
 }
 
 #[cfg(test)]

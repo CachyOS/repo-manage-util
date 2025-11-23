@@ -10,7 +10,7 @@ mod repo_utils;
 mod utils;
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use args::*;
@@ -115,7 +115,7 @@ async fn main() -> Result<()> {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
-            do_repo_aur(repo_dir).await?;
+            do_repo_aur(repo_dir, args.order_file.clone(), args.dry_run).await?;
         },
     }
 
@@ -421,7 +421,7 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
     Ok(())
 }
 
-async fn do_repo_aur(repo_dir: &Path) -> Result<()> {
+async fn do_repo_aur(repo_dir: &Path, order_file: Option<PathBuf>, dry_run: bool) -> Result<()> {
     // NOTE: looks ugly, but we only need db pair
     let pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
     let new_pkgs = pkgs_list
@@ -438,12 +438,20 @@ async fn do_repo_aur(repo_dir: &Path) -> Result<()> {
         })
         .collect::<Vec<_>>();
 
-    let new_aur_pkgs =
+    let package_summary =
         aur::get_new_aur_pkgs(&new_pkgs).await.context("Failed to get new AUR pkgs")?;
-    for new_pkg in new_aur_pkgs {
+    for new_pkg in &package_summary.new_pkgs {
         tracing::info!("Found new AUR package: '{}-{}'", new_pkg.name, new_pkg.version);
 
         // TODO(vnepogodin): do actual pulling using pkg-manage-util crate
+    }
+
+    // write order if user requested
+    if let Some(order_file) = order_file {
+        let file_content = package_summary.build_order.join("\n");
+        tokio::fs::write(order_file, file_content)
+            .await
+            .context("Failed to write build order to file")?;
     }
 
     Ok(())

@@ -432,6 +432,10 @@ async fn do_repo_aur(repo_dir: &Path) -> Result<()> {
             let pkgver = pkg_utils::get_pkgver_from_filename(filename).to_owned();
             (pkgname, pkgver)
         })
+        .filter(|x| {
+            // filter out -git packages which will be always out-of-date
+            !x.0.contains("-git")
+        })
         .collect::<Vec<_>>();
 
     let new_aur_pkgs =

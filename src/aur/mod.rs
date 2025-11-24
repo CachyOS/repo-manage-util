@@ -2,10 +2,15 @@ mod dep_graph;
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
+use std::path::Path;
 
 use anyhow::{Context, Result};
-use flate2::read::GzDecoder;
+use flate2::read::{GzDecoder, MultiGzDecoder};
 use serde::Deserialize;
+use tar::Archive;
+
+// Our hardcoded client header
+const USER_AGENT: &str = "repo-manage-util/1.0.0";
 
 #[derive(Deserialize, Clone)]
 pub struct Package {
@@ -18,9 +23,6 @@ pub struct Package {
 
     #[serde(rename = "Version")]
     pub version: String,
-
-    #[serde(rename = "URLPath")]
-    pub url_path: String,
 
     // AUR RPC info/multiinfo ReturnData
     #[serde(rename = "Depends", default)]
@@ -38,7 +40,7 @@ pub struct Package {
 
 pub struct PackageSummary {
     pub new_pkgs: Vec<Package>,
-    pub build_order: Vec<String>,
+    pub build_order: Vec<Package>,
 }
 
 // Gets list of local AUR packages eligible for the update
@@ -66,15 +68,54 @@ pub async fn get_new_aur_pkgs(pkg_list: &[(String, String)]) -> Result<PackageSu
         dep_graph::calculate_build_order(&build_graph).context("Failed to calc order")?;
     tracing::debug!("Build graph {build_graph:?}");
 
+    // insert full package info to the build order
+    let build_order = build_order
+        .iter()
+        .map(|x| aur_map.get(x).expect("how is that even possible").clone())
+        .collect();
+
     // NOTE(vnepogodin): should we filter out packages which don't need update?
 
     Ok(PackageSummary { new_pkgs, build_order })
 }
 
+pub async fn pull_tarballs<PathLike: AsRef<Path>>(
+    targets: &[Package],
+    dest_path: PathLike,
+) -> Result<()> {
+    let mut pkgbases = targets.iter().map(|x| x.package_base.clone()).collect::<Vec<_>>();
+    pkgbases.dedup();
+    for pkgbase in &pkgbases {
+        pull_tarball(pkgbase, dest_path.as_ref()).await?;
+    }
+
+    Ok(())
+}
+
+async fn pull_tarball<PathLike: AsRef<Path>>(pkgbase: &str, dest_path: PathLike) -> Result<()> {
+    tracing::debug!("Pulling '{pkgbase}'..");
+    let url = format!("https://aur.archlinux.org/cgit/aur.git/snapshot/{pkgbase}.tar.gz");
+
+    let retry_policy = reqwest::retry::for_host("aur.archlinux.org").max_retries_per_request(10);
+    let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .retry(retry_policy)
+        .build()
+        .context("Failed to build client")?;
+    let response = client.get(url).send().await?.error_for_status()?;
+
+    let content = response.bytes().await?;
+    let decoder = MultiGzDecoder::new(content.iter().as_slice());
+    let mut archive = Archive::new(decoder);
+
+    archive.unpack(&dest_path).context("Failed to unpack tarball")?;
+    Ok(())
+}
+
 pub async fn fetch_snapshot() -> Result<Vec<Package>> {
     let url = "https://aur.archlinux.org/packages-meta-ext-v1.json.gz";
     let client = reqwest::Client::builder()
-        .user_agent("repo-manage-util/1.0.0")
+        .user_agent(USER_AGENT)
         .build()
         .context("Failed to build client")?;
     let response = client.get(url).send().await?.error_for_status()?;
@@ -86,7 +127,7 @@ pub async fn fetch_snapshot() -> Result<Vec<Package>> {
 pub async fn fetch_packages() -> Result<Vec<String>> {
     let url = "https://aur.archlinux.org/packages.gz";
     let client = reqwest::Client::builder()
-        .user_agent("repo-manage-util/1.0.0")
+        .user_agent(USER_AGENT)
         .build()
         .context("Failed to build client")?;
     let response = client.get(url).send().await?.error_for_status()?;

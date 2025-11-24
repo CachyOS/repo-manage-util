@@ -9,8 +9,8 @@ mod postgresql_helper;
 mod repo_utils;
 mod utils;
 
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 use anyhow::{Context, Result};
 use args::*;
@@ -442,13 +442,23 @@ async fn do_repo_aur(repo_dir: &Path, order_file: Option<PathBuf>, dry_run: bool
         aur::get_new_aur_pkgs(&new_pkgs).await.context("Failed to get new AUR pkgs")?;
     for new_pkg in &package_summary.new_pkgs {
         tracing::info!("Found new AUR package: '{}-{}'", new_pkg.name, new_pkg.version);
+    }
 
-        // TODO(vnepogodin): do actual pulling using pkg-manage-util crate
+    if !dry_run {
+        let current_dir = env::current_dir()?;
+        aur::pull_tarballs(&package_summary.build_order, &current_dir)
+            .await
+            .context("Failed to pull sources")?;
     }
 
     // write order if user requested
     if let Some(order_file) = order_file {
-        let file_content = package_summary.build_order.join("\n");
+        let file_content = package_summary
+            .build_order
+            .iter()
+            .map(|x| x.name.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
         tokio::fs::write(order_file, file_content)
             .await
             .context("Failed to write build order to file")?;

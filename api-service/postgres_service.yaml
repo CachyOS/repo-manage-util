@@ -3,7 +3,7 @@ config_vars: config_vars.yaml
 components_manager:
     task_processors:                  # Task processor is an executor for coroutine tasks
 
-        main-task-processor:          # Make a task processor for CPU-bound couroutine tasks.
+        main-task-processor:          # Make a task processor for CPU-bound coroutine tasks.
             worker_threads: $worker-threads         # Process tasks in 4 threads.
             worker_threads#fallback: 4
 
@@ -62,6 +62,11 @@ components_manager:
 
         handler-split-package:
             path: /api/v1/split/{repo}/{pkgbase}
+            task_processor: main-task-processor
+            method: GET
+
+        handler-packages-suggest:
+            path: /api/v1/packages/suggest/{query}
             task_processor: main-task-processor
             method: GET
 

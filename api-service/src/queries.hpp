@@ -24,6 +24,11 @@ SELECT * FROM helper_schema.get_page_search_packages_with_offset($1, $2, $3, $4,
 )~",
     userver::storages::postgres::Query::Name{"select-packages-by-string-query"}};
 
+inline const userver::storages::postgres::Query kSelectTopPackageNames{R"~(
+SELECT * FROM helper_schema.get_top_pkg_names($1, $2);
+)~",
+    userver::storages::postgres::Query::Name{"select-top-package-names-query"}};
+
 inline const userver::storages::postgres::Query kInsertRepository{R"~(
 SELECT helper_schema.insert_or_update_repository($1, NULL);
 )~",

@@ -309,3 +309,20 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql STABLE;
+
+CREATE OR REPLACE FUNCTION helper_schema.get_top_pkg_names(_limit integer = 10, _query text = null)
+        RETURNS SETOF TEXT
+        AS $$
+BEGIN
+        RETURN QUERY
+        SELECT p.pkg_name
+        FROM packages p
+        WHERE
+            _query IS NULL OR
+            (p.pkg_name ILIKE _query || '%')
+        ORDER BY
+            p.pkg_name
+        LIMIT _limit;
+END;
+$$
+LANGUAGE plpgsql STABLE;

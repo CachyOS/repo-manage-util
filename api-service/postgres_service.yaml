@@ -146,6 +146,11 @@ components_manager:
             path: /api/v1/split/{repo}/{pkgbase}
             task_processor: main-task-processor
             method: GET
+
+        handler-packages-suggest:
+            path: /api/v1/packages/suggest/{query}
+            task_processor: main-task-processor
+            method: GET
         # /// [our API endpoints]
 
         # /// Periodic task

@@ -117,6 +117,7 @@ add_executable(api-postgresql-service
    src/package_files_handler.cpp
    src/split_package_handler.cpp
    src/packages_search_handler.cpp
+   src/packages_suggest_handler.cpp
    src/diff_checker.cpp
    src/arch_repo_checker.cpp
    src/main.cpp

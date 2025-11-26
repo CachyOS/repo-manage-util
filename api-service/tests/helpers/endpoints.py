@@ -18,3 +18,8 @@ async def get_split_package(service_client, repo: str, pkgbase: str):
     f'/api/v1/split/{repo}/{pkgbase}',
   )
 
+async def get_packages_suggest(service_client, limit:int = 10, query: str = ''):
+  return await service_client.get(
+    f'/api/v1/packages/suggest/{query}?limit={limit}',
+  )
+

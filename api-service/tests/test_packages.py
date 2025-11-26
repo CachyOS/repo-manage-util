@@ -87,3 +87,40 @@ async def test_split_packages(service_client):
     assert response.status == 200
     assert len(response.json()) == 3
     assert [pkg['pkg_name'] for pkg in response.json()] == ['python-uv', 'python-uv-build', 'uv']
+
+@pytest.mark.pgsql('init_db', files=['initial_data.sql'])
+async def test_suggest_packages(service_client):
+    response = await get_packages_suggest(service_client, query='d')
+    assert response.headers['Content-Type'] == 'application/x-suggestions+json'
+    assert response.status == 200
+    suggestions = response.json()
+    assert len(suggestions) == 2
+    query = suggestions[0]
+    names = suggestions[1]
+    assert query == 'd'
+    assert names == ['docker', 'dolt', 'dwl-git', 'dwm']
+
+    response = await get_packages_suggest(service_client, limit=2, query='d')
+    suggestions = response.json()
+    assert len(suggestions) == 2
+    query = suggestions[0]
+    names = suggestions[1]
+    assert query == 'd'
+    assert names == ['docker', 'dolt']
+
+    response = await get_packages_suggest(service_client, query='nginx')
+    suggestions = response.json()
+    assert len(suggestions) == 2
+    query = suggestions[0]
+    names = suggestions[1]
+    assert query == 'nginx'
+    assert names == ['nginx']
+
+    response = await get_packages_suggest(service_client, query='unknown')
+    assert response.status == 200
+    suggestions = response.json()
+    assert len(suggestions) == 2
+    query = suggestions[0]
+    names = suggestions[1]
+    assert query == 'unknown'
+    assert names == []

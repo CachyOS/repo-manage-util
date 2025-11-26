@@ -315,7 +315,7 @@ CREATE OR REPLACE FUNCTION helper_schema.get_top_pkg_names(_limit integer = 10, 
         AS $$
 BEGIN
         RETURN QUERY
-        SELECT p.pkg_name
+        SELECT DISTINCT p.pkg_name
         FROM packages p
         WHERE
             _query IS NULL OR

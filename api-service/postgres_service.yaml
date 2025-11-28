@@ -110,6 +110,9 @@ components_manager:
         # /// [secdist]
         default-secdist-provider:
             config: $secdist-path
+            missing-ok: true
+            environment-secrets-key: SECDIST_CONFIG
+
         # /// [secdist]
 
         # /// [metrics]
@@ -141,6 +144,8 @@ components_manager:
             path: /api/v1/packages-search
             task_processor: main-task-processor
             method: GET
+            redisdb: redis-sentinel
+            cache-ttl: 15m
 
         handler-split-package:
             path: /api/v1/split/{repo}/{pkgbase}
@@ -168,4 +173,13 @@ components_manager:
             dns_resolver: async
             sync-start: true
             check-user-types: true
+
+        redis-cache-1:
+            groups:
+                - config_name: redis-sentinel
+                  db: redis-sentinel
+            subscribe_groups: []
+            thread_pools:
+                redis_thread_pool_size: 2
+                sentinel_thread_pool_size: 1
         # /// [DB]

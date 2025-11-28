@@ -58,6 +58,8 @@
 #include <userver/server/handlers/tests_control.hpp>
 #include <userver/storages/postgres/cluster.hpp>
 #include <userver/storages/postgres/component.hpp>
+#include <userver/storages/redis/component.hpp>
+#include <userver/storages/secdist/component.hpp>
 #include <userver/storages/secdist/provider_component.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/daemon_run.hpp>
@@ -82,6 +84,7 @@ static auto create_service_component_list() noexcept
         .Append<service::alpm::ArchRepoCheckerComponent>()
         .Append<userver::congestion_control::Component>()
         .Append<userver::components::Postgres>("repomanage-postgres-db-1")
+        .Append<userver::components::Redis>("redis-cache-1")
         .Append<userver::server::handlers::ServerMonitor>()
         /* needed for testsuite */
         .Append<userver::server::handlers::Ping>()
@@ -89,6 +92,7 @@ static auto create_service_component_list() noexcept
         .Append<userver::components::TestsuiteSupport>()
         .Append<userver::server::handlers::TestsControl>()
         /* needed for testsuite */
+        .Append<userver::components::Secdist>()
         .Append<userver::components::DefaultSecdistProvider>()
         .Append<userver::components::LoggingConfigurator>()
         .Append<userver::clients::dns::Component>();

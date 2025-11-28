@@ -4,7 +4,7 @@ FROM archlinux:base-devel as builder
 RUN pacman -Syu --noconfirm --noprogressbar --needed \
     git python cmake ninja clang llvm lld boost boost-libs libbsd tcl libxml2 util-linux zlib \
     sudo crypto++ yaml-cpp c-ares libev python-jinja \
-    libnghttp2 postgresql meson pkg-config rust
+    libnghttp2 postgresql meson pkg-config rust hiredis
 
 # Add the repository key
 RUN pacman-key --init && \
@@ -57,7 +57,7 @@ COPY --from=builder /usr/lib/libhttp_parser.so* /usr/lib/
 RUN pacman -Syu --needed --noconfirm --noprogressbar \
     sudo boost-libs libbsd tcl libxml2 util-linux zlib \
     crypto++ yaml-cpp c-ares libev \
-    postgresql
+    postgresql hiredis
 
 # Create user builder
 RUN useradd -d /app builder

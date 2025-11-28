@@ -4,6 +4,7 @@ import pathlib
 import sys
 
 import pytest
+from pytest_userver import chaos
 
 from testsuite.databases.pgsql import discover
 
@@ -11,7 +12,7 @@ import __main__
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'helpers'))
 
-pytest_plugins = ['pytest_userver.plugins.core', 'pytest_userver.plugins.postgresql']
+pytest_plugins = ['pytest_userver.plugins.core', 'pytest_userver.plugins.postgresql', 'pytest_userver.plugins.redis']
 
 @pytest.fixture(scope='session')
 def service_source_dir():
@@ -45,3 +46,20 @@ async def pipeline_mode(request, service_client, dynamic_config):
         'POSTGRES_CONNECTION_PIPELINE_EXPERIMENT': request.param,
     })
     await service_client.update_server_state()
+
+# /// [service_env]
+@pytest.fixture(scope='session')
+def service_env(redis_sentinels):
+    secdist_config = {
+        'redis_settings': {
+            'redis-sentinel': {
+                'password': '',
+                'database_index': 0,
+                'sentinels': redis_sentinels,
+                'shards': [{'name': 'test_master0'}],
+            },
+        },
+    }
+
+    return {'SECDIST_CONFIG': json.dumps(secdist_config)}
+    # /// [service_env]

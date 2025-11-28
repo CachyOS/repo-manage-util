@@ -30,13 +30,19 @@
 
 #include <userver/server/handlers/exceptions.hpp>
 #include <userver/storages/postgres/cluster.hpp>
+#include <userver/storages/redis/client.hpp>
 #include <userver/utils/from_string.hpp>
+#include <userver/storages/postgres/io/json_types.hpp>
+#include <userver/yaml_config/merge_schemas.hpp>
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
+
+#include <fmt/format.h>
+#include <fmt/compile.h>
 
 namespace {
 
@@ -75,6 +81,16 @@ constexpr auto split_text(std::string_view text) noexcept -> std::optional<std::
     return std::make_optional(std::move(split_vec));
 }
 
+constexpr auto get_cache_key(std::int32_t current_page, std::int32_t page_size, std::string_view search_query, std::string_view repof, std::string_view archf) noexcept -> std::string {
+    return fmt::format(FMT_COMPILE("{}-{}-{}-{}-{}"), current_page, page_size, search_query, repof, archf);
+}
+
+auto serialize_json(const userver::formats::json::Value& json_val) -> std::string {
+    std::string buffer{};
+    userver::storages::postgres::io::detail::JsonValueToBuffer(json_val, buffer);
+    return buffer;
+}
+
 }  // namespace
 
 namespace service::pg {
@@ -94,9 +110,6 @@ userver::formats::json::Value PackagesSearchHandler::HandleRequestJsonThrow(
     const auto& page_size    = get_arg_helper(request.GetArg("page_size")).value_or(100);
     // get search arg
     const auto& search_query = request.GetArg("search");
-    // get filter args
-    const auto& repof = split_text(request.GetArg("repo"));
-    const auto& archf = split_text(request.GetArg("arch"));
 
     // validate
     if (current_page <= 0) {
@@ -107,6 +120,17 @@ userver::formats::json::Value PackagesSearchHandler::HandleRequestJsonThrow(
         throw userver::server::handlers::ClientError(
             userver::server::handlers::ExternalBody{kInvalidPageSize});
     }
+
+    // check redis cache
+    const auto& cache_key = get_cache_key(current_page, page_size, search_query, request.GetArg("repo"), request.GetArg("arch"));
+    const auto& cache_val = redis_client_->Get(cache_key, redis_cc_).Get();
+    if (cache_val) {
+        return userver::formats::json::FromString(*cache_val);
+    }
+
+    // get filter args
+    const auto& repof = split_text(request.GetArg("repo"));
+    const auto& archf = split_text(request.GetArg("arch"));
     // calculate needed offset
     const auto& offset = (current_page - 1) * page_size;
 
@@ -131,7 +155,29 @@ userver::formats::json::Value PackagesSearchHandler::HandleRequestJsonThrow(
     std::ranges::for_each(
         packages_res.packages,
         [&js_obj](const auto& row) { js_obj["packages"].PushBack(row); });
-    return js_obj.ExtractValue();
+
+    const auto& res_val = js_obj.ExtractValue();
+
+    const auto& json_string = serialize_json(res_val);
+    redis_client_->Set(cache_key, json_string, cache_ttl_, redis_cc_).Wait();
+    return res_val;
+}
+
+userver::yaml_config::Schema PackagesSearchHandler::GetStaticConfigSchema() {
+    return userver::yaml_config::MergeSchemas<userver::server::handlers::HttpHandlerJsonBase>(R"(
+    # yaml
+    type: object
+    description: |
+      Packages handler
+    additionalProperties: false
+    properties:
+      redisdb:
+          type: string
+          description: (*required*) redis database name
+      cache-ttl:
+          type: string
+          description: (*required*) utils::StringToDuration suitable duration string to store cache
+  )");
 }
 
 }  // namespace service::pg

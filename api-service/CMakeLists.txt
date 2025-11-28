@@ -150,7 +150,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE POSTGRESQL_SERVICE_CONFIG_DIR
 target_compile_definitions(${PROJECT_NAME} PRIVATE NDEBUG)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(backend-rustlib-cxxbridge PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/backend-rustlib/src)
-target_link_libraries(${PROJECT_NAME} PRIVATE project_warnings project_options spdlog::spdlog fmt::fmt userver::core userver::postgresql backend-rustlib-cxxbridge ${PROJECT_NAME}_rustutils ${PROJECT_NAME}_sql libpqxx::pqxx pq::pq)
+target_link_libraries(${PROJECT_NAME} PRIVATE project_warnings project_options spdlog::spdlog fmt::fmt userver::core userver::postgresql userver::redis backend-rustlib-cxxbridge ${PROJECT_NAME}_rustutils ${PROJECT_NAME}_sql libpqxx::pqxx pq::pq)
 target_link_libraries(arch-diff PRIVATE project_warnings project_options fmt::fmt userver::core userver::postgresql backend-rustlib-cxxbridge ${PROJECT_NAME}_rustutils ${PROJECT_NAME}_sql libpqxx::pqxx pq::pq)
 target_link_libraries(${PROJECT_NAME}_rustutils PRIVATE project_warnings project_options userver::core userver::postgresql backend-rustlib-cxxbridge PkgConfig::LIBALPM)
 

@@ -1,3 +1,11 @@
+x-valkey-env: &valkey-env
+  VALKEY_PW: "1234"               # Password for data nodes
+  SENTINEL_PW: "1234"             # Password for Sentinel
+  PRIMARY_HOST: "valkey-primary"  # Hostname of the Primary
+  PRIMARY_PORT: "6379"            # Port of the Primary
+  SENTINEL_PORT: "26379"          # Port of the Sentinel
+  PRIMARY_SET: "shard_master0"    # The name of the shard group
+
 services:
     repo-postgres:
         container_name: repo-postgres
@@ -29,6 +37,96 @@ services:
         networks:
           - postgres
 
+    valkey-primary:
+        container_name: valkey-primary
+        image: valkey/valkey:9-alpine
+        environment:
+          <<: *valkey-env
+        command: >
+          sh -c 'valkey-server /etc/valkey/valkey.conf
+          --port $$PRIMARY_PORT
+          --requirepass "$$VALKEY_PW"
+          --masterauth "$$VALKEY_PW"'
+        mem_limit: 2.5g
+        healthcheck:
+          test: ["CMD-SHELL", "valkey-cli", "-p", "$$PRIMARY_PORT", "-a", "$$VALKEY_PW", "ping"]
+          interval: 5s
+          timeout: 3s
+          retries: 5
+        volumes:
+          - ./.valkey.conf:/etc/valkey/valkey.conf
+        networks:
+          - valkey
+
+    valkey-replica:
+        container_name: valkey-replica
+        image: valkey/valkey:9-alpine
+        environment:
+          <<: *valkey-env
+        command: >
+          sh -c 'valkey-server /etc/valkey/valkey.conf
+          --port $$PRIMARY_PORT
+          --replicaof "$$PRIMARY_HOST" $$PRIMARY_PORT
+          --requirepass "$$VALKEY_PW"
+          --masterauth "$$VALKEY_PW"'
+        mem_limit: 2.5g
+        healthcheck:
+          test: ["CMD-SHELL", "valkey-cli", "-p", "$$PRIMARY_PORT", "-a", "$$VALKEY_PW", "ping"]
+          interval: 5s
+          timeout: 3s
+          retries: 5
+        volumes:
+          - ./.valkey.conf:/etc/valkey/valkey.conf
+        depends_on:
+          valkey-primary:
+            condition: service_healthy
+        networks:
+          - valkey
+
+    valkey-sentinel:
+        container_name: valkey-sentinel
+        image: valkey/valkey:9-alpine
+        #ports:
+        #  - "26379:26379"
+        environment:
+          <<: *valkey-env
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Creating sentinel configuration..."
+            cat <<EOF > /tmp/sentinel.conf
+            port $$SENTINEL_PORT
+            dir /tmp
+            sentinel resolve-hostnames yes
+
+            sentinel monitor $$PRIMARY_SET $$PRIMARY_HOST $$PRIMARY_PORT 2
+
+            sentinel auth-pass $$PRIMARY_SET $$VALKEY_PW
+            requirepass $$SENTINEL_PW
+
+            sentinel down-after-milliseconds $$PRIMARY_SET 5000
+            sentinel failover-timeout $$PRIMARY_SET 60000
+            sentinel parallel-syncs $$PRIMARY_SET 1
+            EOF
+
+            echo "Starting Sentinel on port $$SENTINEL_PORT..."
+            valkey-sentinel /tmp/sentinel.conf
+
+        mem_limit: 2.5g
+        healthcheck:
+          test: ["CMD-SHELL", "valkey-cli", "-p", "$$SENTINEL_PORT", "-a", "$$SENTINEL_PW", "ping"]
+          interval: 5s
+          timeout: 3s
+          retries: 5
+        depends_on:
+          valkey-primary:
+            condition: service_healthy
+          valkey-replica:
+            condition: service_healthy
+        networks:
+          - valkey
+
     api-postgresql-service:
         build: ./api-service
         container_name: api-postgresql-service
@@ -42,10 +140,14 @@ services:
         depends_on:
           repo-postgres:
             condition: service_healthy
+          valkey-sentinel:
+            condition: service_healthy
         links:
           - repo-postgres
+          - valkey-sentinel
         networks:
           - postgres
+          - valkey
 
     web-dashboard:
         build: ./web-dashboard
@@ -63,4 +165,6 @@ services:
 
 networks:
     postgres:
+        driver: bridge
+    valkey:
         driver: bridge

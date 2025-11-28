@@ -1,1 +1,17 @@
-{}
+{
+  "redis_settings": {
+    "redis-sentinel": {
+      "password": "1234",
+      "sentinel_password": "1234",
+      "secure_connection": false,
+      "sentinels": [
+        {"host": "localhost", "port": 26379},
+        {"host": "valkey-sentinel", "port": 26379}
+      ],
+      "shards": [
+        {"name": "shard_master0"}
+      ]
+    }
+  }
+}
+

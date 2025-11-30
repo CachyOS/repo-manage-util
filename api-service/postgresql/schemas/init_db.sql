@@ -294,30 +294,56 @@ DECLARE
         _result helper_schema.brief_package_page_result;
 BEGIN
         WITH search_results AS (
-            -- get_brief_packages_with_filters
             SELECT
-                COUNT(*) OVER() AS full_count,
-                p
-            FROM helper_schema.get_brief_packages() AS p
+                COUNT(*) OVER() AS total_count,
+                -- get_brief_packages
+                p.pkg_name,
+                p.repo_name,
+                p.pkg_arch,
+                p.pkg_version,
+                p.pkg_desc,
+                p.pkg_builddate -- let's get epoch later
+            FROM packages p
             WHERE
+                -- get_brief_packages_with_filters
                 (_repo_filter IS NULL OR _repo_filter = '{}' OR p.repo_name = ANY (_repo_filter)) AND
                 (_arch_filter IS NULL OR _arch_filter = '{}' OR p.pkg_arch = ANY (_arch_filter)) AND
                 (_query IS NULL OR _query = '' OR p.pkg_name ILIKE '%' || _query || '%' OR p.pkg_desc ILIKE '%' || _query || '%')
         ),
-        paged_results AS (
-            -- search_offset_packages_with_filters
-            SELECT *
+        paginated_rows AS (
+            SELECT
+                total_count,
+                -- get_brief_packages
+                pkg_name,
+                repo_name,
+                pkg_arch,
+                pkg_version,
+                pkg_desc,
+                EXTRACT(EPOCH FROM pkg_builddate)::INTEGER AS pkg_builddate_epoch
             FROM search_results
-            ORDER BY (p).pkg_builddate DESC
+            -- search_offset_packages_with_filters
+            ORDER BY pkg_builddate DESC
             LIMIT _limit OFFSET _offset
         )
         SELECT
-            COALESCE((SELECT full_count FROM paged_results LIMIT 1), 0),
-            COALESCE(array_agg(p), ARRAY[]::helper_schema.brief_package[])
+            COALESCE((SELECT total_count FROM paginated_rows LIMIT 1), 0),
+            COALESCE(
+                array_agg(
+                    ROW(
+                        pkg_name,
+                        repo_name,
+                        pkg_arch,
+                        pkg_version,
+                        pkg_desc,
+                        pkg_builddate_epoch
+                    )::helper_schema.brief_package
+                ),
+                ARRAY[]::helper_schema.brief_package[]
+            )
         INTO
             _result.total_packages,
             _result.packages
-        FROM paged_results;
+        FROM paginated_rows;
 
         RETURN _result;
 END;

@@ -82,6 +82,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_pkg_idx ON packages (repo_name, pkg_name)
 CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(pkg_name);
 CREATE INDEX IF NOT EXISTS idx_packages_filename ON packages(pkg_filename);
 CREATE INDEX IF NOT EXISTS idx_packages_arch ON packages(pkg_arch);
+CREATE INDEX IF NOT EXISTS idx_packages_repo ON packages(repo_name);
+CREATE INDEX IF NOT EXISTS idx_packages_builddate ON packages(pkg_builddate DESC);
 
 CREATE INDEX IF NOT EXISTS idx_packages_search ON packages USING gin (pkg_name gin_trgm_ops, pkg_desc gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_packages_depends ON packages USING gin (pkg_depends);
@@ -291,19 +293,31 @@ CREATE OR REPLACE FUNCTION helper_schema.get_page_search_packages_with_offset(_l
 DECLARE
         _result helper_schema.brief_package_page_result;
 BEGIN
-        SELECT COUNT(*) INTO _result.total_packages FROM helper_schema.search_packages_with_filters(_query, _repo_filter, _arch_filter);
-
-        WITH paginated_data AS (
+        WITH search_results AS (
+            -- get_brief_packages_with_filters
+            SELECT
+                COUNT(*) OVER() AS full_count,
+                p
+            FROM helper_schema.get_brief_packages() AS p
+            WHERE
+                (_repo_filter IS NULL OR _repo_filter = '{}' OR p.repo_name = ANY (_repo_filter)) AND
+                (_arch_filter IS NULL OR _arch_filter = '{}' OR p.pkg_arch = ANY (_arch_filter)) AND
+                (_query IS NULL OR _query = '' OR p.pkg_name ILIKE '%' || _query || '%' OR p.pkg_desc ILIKE '%' || _query || '%')
+        ),
+        paged_results AS (
+            -- search_offset_packages_with_filters
             SELECT *
-            FROM helper_schema.search_offset_packages_with_filters(_limit, _offset, _query, _repo_filter, _arch_filter)
+            FROM search_results
+            ORDER BY (p).pkg_builddate DESC
+            LIMIT _limit OFFSET _offset
         )
         SELECT
-            COALESCE(
-                array_agg(
-                    ROW(pd.*)::helper_schema.brief_package
-                ),
-            ARRAY[]::helper_schema.brief_package[]) INTO _result.packages
-        FROM paginated_data pd;
+            COALESCE((SELECT full_count FROM paged_results LIMIT 1), 0),
+            COALESCE(array_agg(p), ARRAY[]::helper_schema.brief_package[])
+        INTO
+            _result.total_packages,
+            _result.packages
+        FROM paged_results;
 
         RETURN _result;
 END;

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use anyhow::{Context, Result};
-use args::*;
+use args::{Cli, Commands};
 use clap::Parser;
 use config::Profile;
 use postgresql_helper::PostgresqlHelper;
@@ -134,7 +134,7 @@ async fn do_repo_reset(
         for pattern in [repo_db_pattern] {
             tracing::debug!("removing db file '{pattern}'..");
             for entry in glob::glob(pattern)? {
-                fs::remove_file(entry?)?
+                fs::remove_file(entry?)?;
             }
         }
 
@@ -266,10 +266,10 @@ async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> 
     // packages(which no longer exist in ref repo)
 
     // report status only when had some work
-    if !packages_to_copy.is_empty() {
-        tracing::info!("Repo ref sync is done!");
-    } else {
+    if packages_to_copy.is_empty() {
         tracing::info!("nothing to do");
+    } else {
+        tracing::info!("Repo ref sync is done!");
     }
 
     Ok(())
@@ -338,10 +338,10 @@ async fn do_repo_move_pkgs(
     }
 
     // report status only when had some work
-    if !pkg_to_move_list.is_empty() {
-        tracing::info!("Repo MovePkgsToRepo is done!");
-    } else {
+    if pkg_to_move_list.is_empty() {
         tracing::info!("nothing to do");
+    } else {
+        tracing::info!("Repo MovePkgsToRepo is done!");
     }
 
     Ok(())
@@ -527,7 +527,7 @@ fn do_backup_repo_cleanup(profile: &config::Profile) -> Result<()> {
 
     let mut pkg_map =
         pkg_utils::get_stale_pkg_versions(&pkgs_list, *profile.backup_num.as_ref().unwrap());
-    for (name, versions) in pkg_map.iter_mut() {
+    for (name, versions) in &mut pkg_map {
         // Remove the packages with more than N versions
         let pkg_versions = versions.iter().map(|x| x.1.to_string()).collect::<Vec<_>>();
         tracing::info!(

@@ -16,5 +16,5 @@ pub fn init_logger() {
         .compact()
         .with_writer(std::io::stdout);
 
-    tracing_subscriber::registry().with(stdout_log).with(subscriber_env_filter).init()
+    tracing_subscriber::registry().with(stdout_log).with(subscriber_env_filter).init();
 }

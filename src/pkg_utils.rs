@@ -32,7 +32,7 @@ pub fn get_outdated_pkgs(pkg_list: &[String]) -> Vec<String> {
 
     // Identify outdated packages for each group
     let mut outdated_pkgs: Vec<String> = vec![];
-    for (_name, versions) in pkg_map.iter_mut() {
+    for versions in pkg_map.values_mut() {
         if versions.len() > 1 {
             // Sort versions in descending order
             versions.sort_by(|a, b| b.1.vercmp(&a.1));
@@ -85,7 +85,7 @@ pub fn get_new_pkgs(pkg_list: &[String]) -> Vec<String> {
     let mut pkg_map = get_pkgs_map(pkg_list);
 
     let mut new_pkgs: Vec<String> = vec![];
-    for (_name, versions) in pkg_map.iter_mut() {
+    for versions in pkg_map.values_mut() {
         if versions.len() > 1 {
             // Sort versions in descending order
             versions.sort_by(|a, b| b.1.vercmp(&a.1));
@@ -105,7 +105,7 @@ pub fn get_stale_pkg_versions(pkg_list: &[String], n_versions: usize) -> Package
     let mut pkg_map = get_pkgs_map(pkg_list);
 
     let mut n_pkgs_map: PackageMap = HashMap::new();
-    for (name, versions) in pkg_map.iter_mut() {
+    for (name, versions) in &mut pkg_map {
         if versions.len() > n_versions {
             // Sort versions in ascending order
             versions.sort_by(|a, b| a.1.vercmp(&b.1));
@@ -185,12 +185,11 @@ pub fn get_repo_db_prefix(repo_db_filename: &str) -> String {
 pub fn remove_pkgs_without_sig(pkgs_list: &mut Vec<String>) {
     pkgs_list.retain(|pkg| {
         let pkg_sig_path = format!("{pkg}.sig");
-        if !Path::new(&pkg_sig_path).exists() {
+        let file_exist = Path::new(&pkg_sig_path).exists();
+        if !file_exist {
             tracing::error!("package doesn't have required signature {pkg}");
-            false
-        } else {
-            true
         }
+        file_exist
     });
 }
 

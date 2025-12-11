@@ -1,4 +1,6 @@
-use crate::pg_types::*;
+use crate::pg_types::{
+    PackageDependencies, PackageInfo, PackageMetadata, RepoSummary, Repository, RepositoryInfo,
+};
 
 use anyhow::{Context, Result};
 use pg_impl::db;
@@ -9,7 +11,7 @@ pub struct PostgresqlHelper {
 }
 
 impl PostgresqlHelper {
-    /// Create a new PostgreSQL helper with connection pool
+    /// Create a new `PostgreSQL` helper with connection pool
     pub async fn new(database_url: &str) -> Result<Self> {
         let db = db::Db::connect(database_url)
             .await
@@ -89,7 +91,7 @@ impl PostgresqlHelper {
             .await
             .context("Failed to get package info")?;
 
-        let pkg_info = row.map(|x| x.into());
+        let pkg_info = row.map(std::convert::Into::into);
         Ok(pkg_info)
     }
 
@@ -173,7 +175,7 @@ impl PostgresqlHelper {
     ) -> Result<Uuid> {
         let repo_id = self
             .db
-            .insert_or_update_repository(repo_name, info.map(|x| x.into()))
+            .insert_or_update_repository(repo_name, info.map(std::convert::Into::into))
             .await
             .context("Failed to insert or update repository")?;
 

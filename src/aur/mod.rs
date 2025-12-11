@@ -1,6 +1,7 @@
 mod dep_graph;
 
 use std::collections::HashMap;
+use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
@@ -86,7 +87,13 @@ pub async fn pull_tarballs<PathLike: AsRef<Path>>(
     let mut pkgbases = targets.iter().map(|x| x.package_base.clone()).collect::<Vec<_>>();
     pkgbases.dedup();
     for pkgbase in &pkgbases {
-        pull_tarball(pkgbase, dest_path.as_ref()).await?;
+        if pull_tarball(pkgbase, dest_path.as_ref()).await.is_ok() {
+            continue;
+        }
+
+        // fallback to AUR Git
+        tracing::debug!("Using Git fallback for {pkgbase}");
+        pull_git_source(pkgbase, dest_path.as_ref())?;
     }
 
     Ok(())
@@ -109,6 +116,21 @@ async fn pull_tarball<PathLike: AsRef<Path>>(pkgbase: &str, dest_path: PathLike)
     let mut archive = Archive::new(decoder);
 
     archive.unpack(&dest_path).context("Failed to unpack tarball")?;
+    Ok(())
+}
+
+fn pull_git_source<PathLike: AsRef<Path>>(pkgbase: &str, dest_path: PathLike) -> Result<()> {
+    tracing::debug!("Pulling Git '{pkgbase}'..");
+
+    let git_path = dest_path.as_ref().join(pkgbase);
+    if git_path.exists() {
+        tracing::debug!("Removing existing source dir for {git_path:?}");
+        fs::remove_dir_all(&git_path).context("Failed to remove existing source dir")?;
+    }
+    // keep only up to second parent
+    pkg_manage_util::aur::clone_repo(pkgbase, git_path, Some(2i32), None)
+        .context("Failed to fetch Git source")?;
+
     Ok(())
 }
 

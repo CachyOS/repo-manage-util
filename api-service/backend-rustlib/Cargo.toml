@@ -10,8 +10,8 @@ anyhow = { version = "1", default-features = false, features = ["std"] }
 cxx = { version = "1", default-features = false, features = ["std"] }
 alpm = { default-features = false, version = "4" }
 alpm-sys = { default-features = false, version = "4" }
-alpm-utils = { features = ["conf"], default-features = false, version = "4" }
-pacmanconf = "3"
+alpm-utils = { features = ["conf", "git"], default-features = false, version = "4" }
+pacmanconf = "3.1"
 
 [build-dependencies]
 cxx-build = "1"
@@ -25,3 +25,9 @@ panic = "abort"
 lto = true
 opt-level = 3
 codegen-units = 1
+
+# required before alpm.rs release for pacman 7.1.0
+[patch.crates-io]
+alpm = { git = "https://github.com/archlinux/alpm.rs", rev = "54b8bdcdce2b04d12a180f1fd4b304cc8cf4cc1a" }
+alpm-sys = { git = "https://github.com/archlinux/alpm.rs", rev = "54b8bdcdce2b04d12a180f1fd4b304cc8cf4cc1a" }
+alpm-utils = { git = "https://github.com/archlinux/alpm.rs", rev = "54b8bdcdce2b04d12a180f1fd4b304cc8cf4cc1a" }

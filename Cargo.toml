@@ -7,7 +7,7 @@ description = "A command-line utility for managing Arch Linux repositories"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-alpm = { version = "4", features = ["checkver"], default-features = false }
+alpm = { version = "4", features = ["git"], default-features = false }
 anyhow = { version = "1", default-features = false, features = ["std"] }
 chrono = { version = "0.4", default-features = false }
 clap = { version = "4.5", features = ["derive"] }
@@ -34,3 +34,8 @@ panic = "abort"
 lto = true
 opt-level = 3
 codegen-units = 1
+
+
+# required before alpm.rs release for pacman 7.1.0
+[patch.crates-io]
+alpm = { git = "https://github.com/archlinux/alpm.rs", rev = "54b8bdcdce2b04d12a180f1fd4b304cc8cf4cc1a" }

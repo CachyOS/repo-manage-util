@@ -83,7 +83,8 @@ CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(pkg_name);
 CREATE INDEX IF NOT EXISTS idx_packages_filename ON packages(pkg_filename);
 CREATE INDEX IF NOT EXISTS idx_packages_arch ON packages(pkg_arch);
 
-CREATE INDEX IF NOT EXISTS idx_packages_search ON packages USING gin (pkg_name gin_trgm_ops, pkg_desc gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_packages_search_vector ON packages USING gin ((to_tsvector('english', pkg_name) ||
+                                                                              to_tsvector('english', coalesce(pkg_desc, ''))));
 CREATE INDEX IF NOT EXISTS idx_packages_depends ON packages USING gin (pkg_depends);
 CREATE INDEX IF NOT EXISTS idx_packages_provides ON packages USING gin (pkg_provides);
 CREATE INDEX IF NOT EXISTS idx_packages_files ON packages USING gin (pkg_files);
@@ -258,57 +259,43 @@ END;
 $$
 LANGUAGE plpgsql STABLE;
 
-CREATE OR REPLACE FUNCTION helper_schema.search_packages_with_filters(_query text = null, _repo_filter text[] = null, _arch_filter text[] = null)
-        RETURNS SETOF helper_schema.brief_package
-        AS $$
-BEGIN
-        RETURN QUERY
-        SELECT *
-        FROM helper_schema.get_brief_packages_with_filters(_repo_filter, _arch_filter) AS p
-        WHERE
-            _query IS NULL OR
-            (p.pkg_name ILIKE '%' || _query || '%' OR
-            p.pkg_desc ILIKE '%' || _query || '%');
-END;
+CREATE OR REPLACE FUNCTION helper_schema.get_page_search_packages_with_offset(
+    _limit INTEGER = 100,
+    _offset INTEGER = 0,
+    _query TEXT = NULL,
+    _repo_filter TEXT[] = NULL,
+    _arch_filter TEXT[] = NULL
+) RETURNS helper_schema.brief_package_page_result AS
 $$
-LANGUAGE plpgsql STABLE;
-
-CREATE OR REPLACE FUNCTION helper_schema.search_offset_packages_with_filters(_limit integer = 100, _offset integer = 0, _query text = null, _repo_filter text[] = null, _arch_filter text[] = null)
-        RETURNS SETOF helper_schema.brief_package
-        AS $$
-BEGIN
-        RETURN QUERY
-        SELECT *
-        FROM helper_schema.search_packages_with_filters(_query, _repo_filter, _arch_filter) AS p
-        LIMIT _limit OFFSET _offset;
-END;
-$$
-LANGUAGE plpgsql STABLE;
-
-CREATE OR REPLACE FUNCTION helper_schema.get_page_search_packages_with_offset(_limit integer = 100, _offset integer = 0, _query text = null, _repo_filter text[] = null, _arch_filter text[] = null)
-        RETURNS helper_schema.brief_package_page_result
-        AS $$
 DECLARE
-        _result helper_schema.brief_package_page_result;
+    _result helper_schema.brief_package_page_result;
 BEGIN
-        SELECT COUNT(*) INTO _result.total_packages FROM helper_schema.search_packages_with_filters(_query, _repo_filter, _arch_filter);
+    WITH query_params AS ( SELECT websearch_to_tsquery('english', nullif(_query, '')) AS tsq ),
+         filtered_packages AS ( SELECT p.pkg_name,
+                                       p.repo_name,
+                                       p.pkg_arch,
+                                       p.pkg_version,
+                                       p.pkg_desc,
+                                       extract(EPOCH FROM p.pkg_builddate)::INTEGER AS pkg_builddate,
+                                       count(*) OVER ()                             AS total_count
+                                FROM packages p
+                                         CROSS JOIN query_params q
+                                WHERE (p.repo_name = ANY (_repo_filter) OR array_length(_repo_filter, 1) IS NULL)
+                                  AND (p.pkg_arch = ANY (_arch_filter) OR array_length(_arch_filter, 1) IS NULL)
+                                  AND (q.tsq IS NULL OR (to_tsvector('english', p.pkg_name) ||
+                                                         to_tsvector('english', coalesce(p.pkg_desc, ''))) @@ q.tsq)
+                                ORDER BY p.pkg_builddate DESC
+                                LIMIT _limit OFFSET _offset )
+    SELECT coalesce(( SELECT total_count FROM filtered_packages LIMIT 1 ), 0),
+           coalesce(
+                   array_agg(ROW(fp.pkg_name, fp.repo_name, fp.pkg_arch, fp.pkg_version, fp.pkg_desc, fp.pkg_builddate)::helper_schema.BRIEF_PACKAGE),
+                   ARRAY[]::helper_schema.BRIEF_PACKAGE[])
+    INTO _result.total_packages, _result.packages
+    FROM filtered_packages fp;
 
-        WITH paginated_data AS (
-            SELECT *
-            FROM helper_schema.search_offset_packages_with_filters(_limit, _offset, _query, _repo_filter, _arch_filter)
-        )
-        SELECT
-            COALESCE(
-                array_agg(
-                    ROW(pd.*)::helper_schema.brief_package
-                ),
-            ARRAY[]::helper_schema.brief_package[]) INTO _result.packages
-        FROM paginated_data pd;
-
-        RETURN _result;
+    RETURN _result;
 END;
-$$
-LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE;
 
 CREATE OR REPLACE FUNCTION helper_schema.get_top_pkg_names(_limit integer = 10, _query text = null)
         RETURNS SETOF TEXT

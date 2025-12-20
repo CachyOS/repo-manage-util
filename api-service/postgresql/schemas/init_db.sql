@@ -1,7 +1,5 @@
 CREATE SCHEMA IF NOT EXISTS helper_schema;
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 DO $$
 BEGIN
 IF NOT EXISTS (select 1 from pg_type where typname = 'package_metadata' AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'helper_schema')) then

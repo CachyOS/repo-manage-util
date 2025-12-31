@@ -1,5 +1,54 @@
+diff --git a/cmake/SetupAbseil.cmake b/cmake/SetupAbseil.cmake
+index 3041a3e03..e66cf8ed2 100644
+--- a/cmake/SetupAbseil.cmake
++++ b/cmake/SetupAbseil.cmake
+@@ -1,9 +1,9 @@
+ # userver does not use Abseil directly, but some libraries need it.
+ 
+ option(USERVER_DOWNLOAD_PACKAGE_ABSEIL "Download and setup Abseil if no Abseil matching version was found"
+-       ${USERVER_DOWNLOAD_PACKAGES}
++    ON
+ )
+-option(USERVER_FORCE_DOWNLOAD_ABSEIL "Download Abseil even if it exists in a system" ${USERVER_DOWNLOAD_PACKAGES})
++option(USERVER_FORCE_DOWNLOAD_ABSEIL "Download Abseil even if it exists in a system" ON)
+ 
+ if(NOT USERVER_FORCE_DOWNLOAD_ABSEIL)
+     set(ABSL_PROPAGATE_CXX_STD ON)
+@@ -23,8 +23,8 @@ include(DownloadUsingCPM)
+ 
+ cpmaddpackage(
+     NAME absl
+-    VERSION 20230802.1
+-    GIT_TAG 20230802.1
++    VERSION 20240722.0
++    GIT_TAG 20240722.0
+     GITHUB_REPOSITORY abseil/abseil-cpp
+     GIT_SHALLOW TRUE
+     SYSTEM
+diff --git a/cmake/SetupPostgresqlDeps.cmake b/cmake/SetupPostgresqlDeps.cmake
+index 903c61f1d..4725218b5 100644
+--- a/cmake/SetupPostgresqlDeps.cmake
++++ b/cmake/SetupPostgresqlDeps.cmake
+@@ -18,7 +18,7 @@ endif()
+ message(STATUS "Found ldap: ${LDAP_LIBRARY}")
+ 
+ find_package(PostgreSQLInternal REQUIRED)
+-find_package(GssApi REQUIRED)
++#find_package(GssApi REQUIRED)
+ find_package(Threads REQUIRED)
+ find_package(OpenSSL REQUIRED)
+ 
+@@ -31,7 +31,7 @@ endif()
+ 
+ get_target_property(PQ_EXTRA_INITIAL_LIBRARIES_LIST PostgreSQLInternal INTERFACE_LINK_LIBRARIES)
+ target_link_libraries(
+-    PostgreSQLInternal INTERFACE ${LDAP_LIBRARY} OpenSSL::SSL OpenSSL::Crypto GssApi Threads::Threads
++    PostgreSQLInternal INTERFACE ${LDAP_LIBRARY} OpenSSL::SSL OpenSSL::Crypto Threads::Threads
+                                  ${USERVER_LIB_MATH}
+ )
+ 
 diff --git a/cmake/UserverSetupEnvironment.cmake b/cmake/UserverSetupEnvironment.cmake
-index 351a34627..80fd551fa 100644
+index 1cf0b8bf5..9a958a501 100644
 --- a/cmake/UserverSetupEnvironment.cmake
 +++ b/cmake/UserverSetupEnvironment.cmake
 @@ -18,14 +18,6 @@ function(_userver_setup_environment_validate_impl)
@@ -17,7 +66,7 @@ index 351a34627..80fd551fa 100644
      get_property(USERVER_CMAKE_DIR GLOBAL PROPERTY userver_cmake_dir)
  
      message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
-@@ -48,6 +40,14 @@ function(_userver_setup_environment_impl)
+@@ -53,6 +45,14 @@ function(_userver_setup_environment_impl)
          )
      endif()
  
@@ -33,65 +82,73 @@ index 351a34627..80fd551fa 100644
          ON
          PARENT_SCOPE
 diff --git a/cmake/modules/FindPostgreSQLInternal.cmake b/cmake/modules/FindPostgreSQLInternal.cmake
-index 48a08f023..9ea50d080 100644
+index 10ade4513..e665047bd 100644
 --- a/cmake/modules/FindPostgreSQLInternal.cmake
 +++ b/cmake/modules/FindPostgreSQLInternal.cmake
-@@ -17,6 +17,7 @@ _userver_module_find_include(
-     NAMES
-     postgres_fe.h
-     PATHS
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql
-     ${USERVER_PG_SERVER_INCLUDE_DIR}
-     /usr/include/postgresql/12/server
-     /usr/include/postgresql/13/server
-@@ -38,6 +39,7 @@ _userver_module_find_include(
-     NAMES
-     libpq-int.h
-     PATHS
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq
-     ${USERVER_PG_INCLUDE_DIR}/internal
-     ${USERVER_PG_INCLUDE_DIR}/postgresql/internal
-     /usr/local/include/postgresql/internal # FreeBSD
-@@ -51,6 +53,7 @@ _userver_module_find_include(
-     NAMES
-     libpq-fe.h
-     PATHS
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq
-     ${USERVER_PG_INCLUDE_DIR}
-     /usr/local/include # FreeBSD
-     /usr/local/pgsql/include # postgresql: make install
-@@ -60,15 +63,20 @@ _userver_module_find_include(
+@@ -8,7 +8,8 @@ _userver_module_begin(
+ 
+ _userver_module_find_include(
+     NAMES postgres_fe.h
+-    PATHS ${USERVER_PG_SERVER_INCLUDE_DIR}
++    PATHS ${CMAKE_SOURCE_DIR}/third_party/postgresql
++          ${USERVER_PG_SERVER_INCLUDE_DIR}
+           /usr/include/postgresql/12/server
+           /usr/include/postgresql/13/server
+           /usr/include/postgresql/14/server
+@@ -26,7 +27,8 @@ _userver_module_find_include(
+ 
+ _userver_module_find_include(
+     NAMES libpq-int.h
+-    PATHS ${USERVER_PG_INCLUDE_DIR}/internal ${USERVER_PG_INCLUDE_DIR}/postgresql/internal
++    PATHS ${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq
++          ${USERVER_PG_INCLUDE_DIR}/internal ${USERVER_PG_INCLUDE_DIR}/postgresql/internal
+           /usr/local/include/postgresql/internal # FreeBSD
+           /usr/local/pgsql/include/internal # postgresql: make install
+     PATH_SUFFIXES postgresql/internal # libpq-dev
+@@ -35,14 +37,17 @@ _userver_module_find_include(
+ 
+ _userver_module_find_include(
+     NAMES libpq-fe.h
+-    PATHS ${USERVER_PG_INCLUDE_DIR} /usr/local/include # FreeBSD
++    PATHS ${CMAKE_SOURCE_DIR}/third_party/postgresql/src/interfaces/libpq
++          ${USERVER_PG_INCLUDE_DIR} /usr/local/include # FreeBSD
+           /usr/local/pgsql/include # postgresql: make install
+     PATH_SUFFIXES postgresql pgsql
  )
  
  _userver_module_find_library(
 -    NAMES libpq.a # must be a static library as we use internal symbols
 -    PATHS ${USERVER_PG_LIBRARY_DIR} /usr/local/lib # FreeBSD
 +    NAMES libpostgresql.a # must be a static library as we use internal symbols
-+    PATHS
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/interfaces/libpq
-+    ${USERVER_PG_LIBRARY_DIR} /usr/local/lib # FreeBSD
-     /usr/local/pgsql/lib # postgresql: make install
++    PATHS ${CMAKE_SOURCE_DIR}/third_party/postgresql
++          ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/interfaces/libpq
++          ${USERVER_PG_LIBRARY_DIR} /usr/local/lib # FreeBSD
+           /usr/local/pgsql/lib # postgresql: make install
+ )
+ 
+@@ -55,8 +60,10 @@ _userver_module_find_library(
  )
  
  _userver_module_find_library(
-     NAMES
--    libpgcommon.a
-+    libpq.so
-     PATHS
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/interfaces/libpq
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/common
-     ${USERVER_PG_SERVER_LIBRARY_DIR}
-     ${USERVER_PG_LIBRARY_DIR}
-     /usr/lib/postgresql/12/lib
-@@ -87,6 +95,7 @@ _userver_module_find_library(
-     NAMES
-     libpgport.a
-     PATHS
-+    ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/port
-     ${USERVER_PG_SERVER_LIBRARY_DIR}
-     ${USERVER_PG_LIBRARY_DIR}
-     /usr/lib/postgresql/12/lib
+-    NAMES libpgcommon.a
+-    PATHS ${USERVER_PG_SERVER_LIBRARY_DIR}
++    NAMES libpq.so
++    PATHS ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/interfaces/libpq
++          ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/common
++          ${USERVER_PG_SERVER_LIBRARY_DIR}
+           ${USERVER_PG_LIBRARY_DIR}
+           /usr/lib/postgresql/12/lib
+           /usr/lib/postgresql/13/lib
+@@ -89,7 +96,8 @@ _userver_module_find_library(
+ 
+ _userver_module_find_library(
+     NAMES libpgport.a
+-    PATHS ${USERVER_PG_SERVER_LIBRARY_DIR}
++    PATHS ${CMAKE_SOURCE_DIR}/third_party/postgresql/build/src/port
++          ${USERVER_PG_SERVER_LIBRARY_DIR}
+           ${USERVER_PG_LIBRARY_DIR}
+           /usr/lib/postgresql/12/lib
+           /usr/lib/postgresql/13/lib
 diff --git a/postgresql/pq-extra/CMakeLists.txt b/postgresql/pq-extra/CMakeLists.txt
 index b5bd233d9..1c19de1e6 100644
 --- a/postgresql/pq-extra/CMakeLists.txt
@@ -105,128 +162,8 @@ index b5bd233d9..1c19de1e6 100644
  
  target_compile_options(${PROJECT_NAME} PUBLIC -Wno-ignored-attributes -Wno-pedantic)
  
-diff --git a/postgresql/pq-extra/pq_workaround.c b/postgresql/pq-extra/pq_workaround.c
-index eac803ea5..352d6124d 100644
---- a/postgresql/pq-extra/pq_workaround.c
-+++ b/postgresql/pq-extra/pq_workaround.c
-@@ -60,6 +60,10 @@ static int getNotify(PGconn* conn);
- static int getCopyStart(PGconn* conn, ExecStatusType copytype);
- static int getReadyForQuery(PGconn* conn);
- 
-+#if PG_VERSION_NUM >= 180000
-+static int getBackendKeyData(PGconn *conn, int msgLength);
-+#endif
-+
- /* Glue to simplify working with error reporting between versions */
- #if PG_VERSION_NUM >= 140000
- #define updatePQXExpBuffer appendPQExpBuffer
-@@ -394,8 +398,12 @@ static void pqxParseInput3(PGconn* conn, const PGresult* description) {
-            * just as easy to handle it as part of the main loop.
-            * Save the data and continue processing.
-            */
-+#if PG_VERSION_NUM >= 180000
-+          if (getBackendKeyData(conn, msgLength)) return;
-+#else
-           if (pqGetInt(&(conn->be_pid), 4, conn)) return;
-           if (pqGetInt(&(conn->be_key), 4, conn)) return;
-+#endif
-           break;
-         case 'T': /* Row Description */
-           if (conn->result != NULL &&
-@@ -909,6 +917,78 @@ static int getReadyForQuery(PGconn* conn) {
-   return 0;
- }
- 
-+#if PG_VERSION_NUM >= 180000
-+/*
-+ * This is copy-paste of getNotify from fe-protocol3.c
-+ *
-+ * parseInput subroutine to read a BackendKeyData message.
-+ * Entry: 'v' message type and length have already been consumed.
-+ * Exit: returns 0 if successfully consumed message.
-+ *       returns EOF if not enough data.
-+ */
-+static int
-+getBackendKeyData(PGconn *conn, int msgLength)
-+{
-+    int         cancel_key_len;
-+
-+    if (conn->be_cancel_key)
-+    {
-+        free(conn->be_cancel_key);
-+        conn->be_cancel_key = NULL;
-+        conn->be_cancel_key_len = 0;
-+    }
-+
-+    if (pqGetInt(&(conn->be_pid), 4, conn))
-+        return EOF;
-+
-+    cancel_key_len = 5 + msgLength - (conn->inCursor - conn->inStart);
-+
-+    if (cancel_key_len != 4 && conn->pversion == PG_PROTOCOL(3, 0))
-+    {
-+        updatePQXExpBuffer(&conn->errorMessage,
-+                           libpq_gettext("received invalid BackendKeyData message: cancel key with length %d not allowed in protocol version 3.0 (must be 4 bytes)"),
-+                           cancel_key_len);
-+        pqSaveErrorResult(conn);
-+        return 0;
-+    }
-+
-+    if (cancel_key_len < 4)
-+    {
-+        updatePQXExpBuffer(&conn->errorMessage,
-+                           libpq_gettext("received invalid BackendKeyData message: cancel key with length %d is too short (minimum 4 bytes)"),
-+                           cancel_key_len);
-+        pqSaveErrorResult(conn);
-+        return 0;
-+    }
-+
-+    if (cancel_key_len > 256)
-+    {
-+        updatePQXExpBuffer(&conn->errorMessage,
-+                           libpq_gettext("received invalid BackendKeyData message: cancel key with length %d is too long (maximum 256 bytes)"),
-+                           cancel_key_len);
-+        pqSaveErrorResult(conn);
-+        return 0;
-+    }
-+
-+    conn->be_cancel_key = malloc(cancel_key_len);
-+    if (conn->be_cancel_key == NULL)
-+    {
-+        updatePQXExpBufferStr(&conn->errorMessage,
-+                              libpq_gettext("out of memory"));
-+        pqSaveErrorResult(conn);
-+        return 0;
-+    }
-+    if (pqGetnchar(conn->be_cancel_key, cancel_key_len, conn))
-+    {
-+        free(conn->be_cancel_key);
-+        conn->be_cancel_key = NULL;
-+        return EOF;
-+    }
-+    conn->be_cancel_key_len = cancel_key_len;
-+    return 0;
-+}
-+#endif
-+
- /*
-  * This is copy-paste of getNotify from fe-protocol3.c
-  *
-diff --git a/rabbitmq/CMakeLists.txt b/rabbitmq/CMakeLists.txt
-index a67b39d2b..94e65567c 100644
---- a/rabbitmq/CMakeLists.txt
-+++ b/rabbitmq/CMakeLists.txt
-@@ -3,7 +3,7 @@ project(userver-rabbitmq CXX)
- if(USERVER_CONAN)
-     find_package(amqpcpp REQUIRED)
- else()
--    include(SetupAmqpCPP)
-+    #include(SetupAmqpCPP)
- endif()
- 
- userver_module(
 diff --git a/third_party/uboost_coro/CMakeLists.txt b/third_party/uboost_coro/CMakeLists.txt
-index ba7bc4c58..328b10cdc 100644
+index c27f74b28..7c68a19b6 100644
 --- a/third_party/uboost_coro/CMakeLists.txt
 +++ b/third_party/uboost_coro/CMakeLists.txt
 @@ -71,7 +71,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE "-w") # no warnings
@@ -239,7 +176,7 @@ index ba7bc4c58..328b10cdc 100644
  if("addr" IN_LIST SANITIZERS_LIST)
      target_compile_definitions(${PROJECT_NAME} PUBLIC "BOOST_USE_ASAN")
 diff --git a/universal/CMakeLists.txt b/universal/CMakeLists.txt
-index d0f4d96ff..ac017e3f2 100644
+index f6c652ab4..3ac52d018 100644
 --- a/universal/CMakeLists.txt
 +++ b/universal/CMakeLists.txt
 @@ -9,7 +9,7 @@ if(TARGET userver-core)
@@ -251,7 +188,7 @@ index d0f4d96ff..ac017e3f2 100644
  
  file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-@@ -148,7 +148,7 @@ if(NOT USERVER_NO_WERROR)
+@@ -142,7 +142,7 @@ if(NOT USERVER_NO_WERROR)
      target_compile_options(userver-internal-compile-options INTERFACE "-Werror")
  endif()
  
@@ -260,12 +197,27 @@ index d0f4d96ff..ac017e3f2 100644
  
  # The library itself
  add_library(${PROJECT_NAME} STATIC ${SOURCES})
-@@ -239,7 +239,7 @@ endif()
+@@ -233,7 +233,7 @@ endif()
  
  target_link_libraries(
      ${PROJECT_NAME}
 -    PUBLIC Threads::Threads userver-internal-sanitize-options userver-internal-compile-options
 +    PUBLIC Threads::Threads userver-internal-compile-options
-     PRIVATE Boost::filesystem Boost::program_options OpenSSL::Crypto OpenSSL::SSL
+     PRIVATE Boost::filesystem Boost::program_options OpenSSL::SSL OpenSSL::Crypto
  )
+ if(TARGET Boost::algorithm)
+@@ -360,10 +360,10 @@ if(USERVER_BUILD_TESTS)
+         PUBLIC ${PROJECT_NAME}
+     )
+     add_test(
+-	NAME ${PROJECT_NAME}-compile-err-msg-test
+-	COMMAND
+-	    python3 ${USERVER_ROOT_DIR}/scripts/compile_fail_test.py ${CMAKE_CURRENT_SOURCE_DIR}
+-	WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
++    NAME ${PROJECT_NAME}-compile-err-msg-test
++    COMMAND
++        python3 ${USERVER_ROOT_DIR}/scripts/compile_fail_test.py ${CMAKE_CURRENT_SOURCE_DIR}
++    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+     )
+ endif()
  

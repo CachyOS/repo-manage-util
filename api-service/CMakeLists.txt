@@ -42,19 +42,19 @@ pkg_check_modules(
 CPMAddPackage(
   NAME fmt
   GITHUB_REPOSITORY fmtlib/fmt
-  GIT_TAG 11.2.0
+  GIT_TAG 12.1.0
   EXCLUDE_FROM_ALL YES
 )
 CPMAddPackage(
   NAME spdlog
   GITHUB_REPOSITORY gabime/spdlog
-  GIT_TAG b18a234ed6af38638678a3338c0d7ed90210ae6c
+  GIT_TAG cdbd64e2305a712ec9a360e5a1e05aa1dcab85e7
   EXCLUDE_FROM_ALL YES
 )
 CPMAddPackage(
   NAME libpqxx
   GITHUB_REPOSITORY jtv/libpqxx
-  GIT_TAG 9dd71102e1f3e10b0f14eed253873ee6ce2a4880
+  GIT_TAG 7.10.4
   EXCLUDE_FROM_ALL YES
 )
 CPMAddPackage(

@@ -44,7 +44,7 @@
 #include <service/sql_queries.hpp>
 
 #include <userver/clients/dns/component.hpp>
-#include <userver/clients/http/component.hpp>
+#include <userver/clients/http/component_list.hpp>
 #include <userver/components/common_component_list.hpp>
 #include <userver/components/common_server_component_list.hpp>
 #include <userver/components/component.hpp>
@@ -82,7 +82,7 @@ static auto create_service_component_list() noexcept
         .Append<userver::components::Postgres>("repomanage-postgres-db-1")
         /* needed for testsuite */
         .Append<userver::server::handlers::Ping>()
-        .Append<userver::components::HttpClient>()
+        .AppendComponentList(userver::clients::http::ComponentList())
         .Append<userver::components::TestsuiteSupport>()
         .Append<userver::server::handlers::TestsControl>()
         /* needed for testsuite */
@@ -91,6 +91,9 @@ static auto create_service_component_list() noexcept
 }
 
 static auto create_table(std::string_view config_file_path, std::string_view config_vars_path) noexcept -> bool {
+    // here we have our sql logic init/migrate specifically for the API service
+    const auto kCreateTable = service::sql::kInitDb.GetStatementView();
+
     auto config_file_yml = userver::formats::yaml::blocking::FromFile(config_file_path.data());
     auto connection_url  = config_file_yml["components_manager"]["components"]
                                          ["repomanage-postgres-db-1"]["dbconnection"]
@@ -128,7 +131,7 @@ static auto create_table(std::string_view config_file_path, std::string_view con
         spdlog::trace("Finished initiating PostgreSQL DB connection");
 
         pqxx::work txn(connection);
-        txn.exec(std::string{service::sql::kInitDb.GetStatementView()});
+        txn.exec(kCreateTable);
         txn.commit();
     } catch (const std::exception& ex) {
         spdlog::error("Failed to connect to the database. what='{}'", ex.what());

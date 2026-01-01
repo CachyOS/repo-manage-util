@@ -85,6 +85,8 @@ components_manager:
 
         http-client:
             load-enabled: $testsuite-enabled
+        http-client-core:
+            load-enabled: $testsuite-enabled
             fs-task-processor: fs-task-processor
 
         tests-control:

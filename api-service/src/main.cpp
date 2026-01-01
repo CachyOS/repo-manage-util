@@ -44,7 +44,7 @@
 #include <service/sql_queries.hpp>
 
 #include <userver/clients/dns/component.hpp>
-#include <userver/clients/http/component.hpp>
+#include <userver/clients/http/component_list.hpp>
 #include <userver/components/common_component_list.hpp>
 #include <userver/components/common_server_component_list.hpp>
 #include <userver/components/component.hpp>
@@ -88,7 +88,7 @@ static auto create_service_component_list() noexcept
         .Append<userver::server::handlers::ServerMonitor>()
         /* needed for testsuite */
         .Append<userver::server::handlers::Ping>()
-        .Append<userver::components::HttpClient>()
+        .AppendComponentList(userver::clients::http::ComponentList())
         .Append<userver::components::TestsuiteSupport>()
         .Append<userver::server::handlers::TestsControl>()
         /* needed for testsuite */

@@ -7,7 +7,7 @@ description = "A command-line utility for managing Arch Linux repositories"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-alpm = { version = "4", features = ["git"], default-features = false }
+alpm = { version = "5", features = ["git"], default-features = false }
 anyhow = { version = "1", default-features = false, features = ["std"] }
 chrono = { version = "0.4", default-features = false }
 clap = { version = "4.5", features = ["derive"] }
@@ -19,14 +19,14 @@ rand = { version = "0.9", features = ["std", "std_rng", "thread_rng"], default-f
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["std"] }
 subprocess = "0.2"
-tokio = { version = "1.46", features = ["macros", "rt-multi-thread"], default-features = false }
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"], default-features = false }
 toml = "0.9"
-uuid = { version = "1.18", features = ["v4"], default-features = false }
+uuid = { version = "1.19", features = ["v4"], default-features = false }
 pg_impl = { path = "./pg_impl" }
 flate2 = "1.1"
 tar = "0.4"
-reqwest = "0.12"
-pkg-manage-util = { git = "https://github.com/CachyOS/pkg-manage-util", rev = "0ea4ea7081bd608397862b342a2586901e3e5224", version = "0.1.0" }
+reqwest = "0.13"
+pkg-manage-util = { git = "https://github.com/CachyOS/pkg-manage-util", rev = "927a956671108268d252523d6a0764e7cff6d969", version = "0.1.0" }
 
 [profile.release]
 strip = "symbols"
@@ -34,8 +34,3 @@ panic = "abort"
 lto = true
 opt-level = 3
 codegen-units = 1
-
-
-# required before alpm.rs release for pacman 7.1.0
-[patch.crates-io]
-alpm = { git = "https://github.com/archlinux/alpm.rs", rev = "54b8bdcdce2b04d12a180f1fd4b304cc8cf4cc1a" }

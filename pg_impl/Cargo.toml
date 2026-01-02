@@ -9,7 +9,7 @@ license = "GPL-3.0-or-later"
 thiserror = { version = "2.0", default-features = false }
 chrono = { version = "0.4", default-features = false }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "runtime-tokio", "migrate", "chrono", "uuid", "macros"], default-features = false }
-tokio = { version = "1.46", features = ["macros", "rt-multi-thread"], default-features = false }
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"], default-features = false }
 uuid = { version = "1", features = ["v4"], default-features = false }
 
 [profile.dev.package.sqlx-macros]

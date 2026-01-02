@@ -112,7 +112,13 @@ impl From<&alpm::Package> for PackageDependencies {
             pkg_checkdepends: Some(pkg.checkdepends().into_iter().map(|s| s.to_string()).collect()),
             pkg_conflicts: Some(pkg.conflicts().into_iter().map(|s| s.to_string()).collect()),
             pkg_provides: Some(pkg.provides().into_iter().map(|s| s.to_string()).collect()),
-            pkg_files: Some(pkg.files().files().iter().map(|s| s.name().to_string()).collect()),
+            pkg_files: Some(
+                pkg.files()
+                    .files()
+                    .iter()
+                    .map(|s| String::from_utf8_lossy(s.name()).to_string())
+                    .collect(),
+            ),
         }
     }
 }

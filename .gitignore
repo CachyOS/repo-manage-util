@@ -1,3 +1,5 @@
+.idea/
+.cache/
 *.dump
 *.ctu-info
 .repo_pgdata

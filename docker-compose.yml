@@ -48,7 +48,9 @@ services:
       - 3030:3000
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./api-service/grafana/provisioning:/etc/grafana/provisioning
+      - ./api-service/grafana/datasources/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./api-service/grafana/dashboards/main.yml:/etc/grafana/provisioning/dashboards/main.yml
+      - ./api-service/grafana/dashboards/redis-exporter.json:/var/lib/grafana/dashboards/redis-exporter.json
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin

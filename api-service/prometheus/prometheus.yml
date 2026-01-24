@@ -1,18 +1,35 @@
 global:
-  scrape_interval:     15s
+  scrape_interval: 15s
   evaluation_interval: 15s
-
-rule_files:
-# - "first_rules.yml"
-# - "second_rules.yml"
 
 scrape_configs:
   - job_name: prometheus
     static_configs:
-      - targets: ['127.0.0.1:9090']
+      - targets:
+          - "prometheus:9090"
 
   - job_name: userver
-    metrics_path: '/metrics'
-    scrape_interval: 5s
+    metrics_path: "/metrics"
     static_configs:
-      - targets: ['api-postgresql-service:8086']
+      - targets:
+          - "api-postgresql-service:8086"
+
+  - job_name: "redis_exporter_targets"
+    static_configs:
+      - targets:
+          - redis://valkey-primary:6379
+          - redis://valkey-replica:6379
+          - redis://valkey-sentinel:26379
+    metrics_path: /scrape
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: redis-exporter:9121
+
+  - job_name: "redis_exporter"
+    static_configs:
+      - targets:
+          - redis-exporter:9121

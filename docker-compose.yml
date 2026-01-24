@@ -1,170 +1,237 @@
 x-valkey-env: &valkey-env
-  VALKEY_PW: "1234"               # Password for data nodes
-  SENTINEL_PW: "1234"             # Password for Sentinel
-  PRIMARY_HOST: "valkey-primary"  # Hostname of the Primary
-  PRIMARY_PORT: "6379"            # Port of the Primary
-  SENTINEL_PORT: "26379"          # Port of the Sentinel
-  PRIMARY_SET: "shard_master0"    # The name of the shard group
+  VALKEY_PW: "1234" # Password for data nodes
+  SENTINEL_PW: "1234" # Password for Sentinel
+  PRIMARY_HOST: "valkey-primary" # Hostname of the Primary
+  PRIMARY_PORT: "6379" # Port of the Primary
+  SENTINEL_PORT: "26379" # Port of the Sentinel
+  PRIMARY_SET: "shard_master0" # The name of the shard group
 
 services:
-    repo-postgres:
-        container_name: repo-postgres
-        image: postgres:17.0-alpine
-        environment:
-          - POSTGRES_DB=pg_repomanage
-          - POSTGRES_USER=user
-          - POSTGRES_PASSWORD=1234
-        ports:
-          - 5432:5432
-        healthcheck:
-          test: ["CMD-SHELL", "pg_isready", "-d", "pg_repomanage"]
-          interval: 5s
-          timeout: 1s
-          retries: 20
-        volumes:
-          - ./.repo_pgdata:/var/lib/postgresql/data
-        networks:
-          - postgres
+  repo-postgres:
+    container_name: repo-postgres
+    image: postgres:17.0-alpine
+    environment:
+      - POSTGRES_DB=pg_repomanage
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=1234
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "user", "-d", "pg_repomanage"]
+      interval: 5s
+      timeout: 1s
+      retries: 20
+    volumes:
+      - ./.repo_pgdata:/var/lib/postgresql/data
+    networks:
+      - postgres
 
-    api-prometheus:
-        container_name: api-prometheus
-        image: prom/prometheus:latest
-        volumes:
-          - ./api-service/prometheus:/etc/prometheus/
-        ports:
-          - 9090:9090
-        restart: on-failure
-        networks:
-          - postgres
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - prometheus_data:/prometheus
+      - ./api-service/prometheus:/etc/prometheus/
+    ports:
+      - 9090:9090
+    networks:
+      - postgres
+      - valkey
+      - monitoring
 
-    valkey-primary:
-        container_name: valkey-primary
-        image: valkey/valkey:9-alpine
-        environment:
-          <<: *valkey-env
-        command: >
-          sh -c 'valkey-server /etc/valkey/valkey.conf
-          --port $$PRIMARY_PORT
-          --requirepass "$$VALKEY_PW"
-          --masterauth "$$VALKEY_PW"'
-        mem_limit: 2.5g
-        healthcheck:
-          test: ["CMD-SHELL", "valkey-cli", "-p", "$$PRIMARY_PORT", "-a", "$$VALKEY_PW", "ping"]
-          interval: 5s
-          timeout: 3s
-          retries: 5
-        volumes:
-          - ./.valkey.conf:/etc/valkey/valkey.conf
-        networks:
-          - valkey
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - 3030:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./api-service/grafana/datasources/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./api-service/grafana/dashboards/main.yml:/etc/grafana/provisioning/dashboards/main.yml
+      - ./api-service/grafana/dashboards/redis-exporter.json:/var/lib/grafana/dashboards/redis-exporter.json
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - monitoring
 
-    valkey-replica:
-        container_name: valkey-replica
-        image: valkey/valkey:9-alpine
-        environment:
-          <<: *valkey-env
-        command: >
-          sh -c 'valkey-server /etc/valkey/valkey.conf
-          --port $$PRIMARY_PORT
-          --replicaof "$$PRIMARY_HOST" $$PRIMARY_PORT
-          --requirepass "$$VALKEY_PW"
-          --masterauth "$$VALKEY_PW"'
-        mem_limit: 2.5g
-        healthcheck:
-          test: ["CMD-SHELL", "valkey-cli", "-p", "$$PRIMARY_PORT", "-a", "$$VALKEY_PW", "ping"]
-          interval: 5s
-          timeout: 3s
-          retries: 5
-        volumes:
-          - ./.valkey.conf:/etc/valkey/valkey.conf
-        depends_on:
-          valkey-primary:
-            condition: service_healthy
-        networks:
-          - valkey
+  redis-exporter:
+    container_name: redis-exporter
+    image: oliver006/redis_exporter:latest
+    restart: unless-stopped
+    ports:
+      - 9121:9121
+    environment:
+      - REDIS_ADDR=
+      - REDIS_PASSWORD=1234
+    depends_on:
+      valkey-sentinel:
+        condition: service_healthy
+    networks:
+      - valkey
 
-    valkey-sentinel:
-        container_name: valkey-sentinel
-        image: valkey/valkey:9-alpine
-        #ports:
-        #  - "26379:26379"
-        environment:
-          <<: *valkey-env
-        command:
-          - /bin/sh
-          - -c
-          - |
-            echo "Creating sentinel configuration..."
-            cat <<EOF > /tmp/sentinel.conf
-            port $$SENTINEL_PORT
-            dir /tmp
-            sentinel resolve-hostnames yes
+  valkey-primary:
+    container_name: valkey-primary
+    image: valkey/valkey:9-alpine
+    environment:
+      <<: *valkey-env
+    command: >
+      sh -c 'valkey-server /etc/valkey/valkey.conf
+      --port $$PRIMARY_PORT
+      --requirepass "$$VALKEY_PW"
+      --masterauth "$$VALKEY_PW"'
+    mem_limit: 2.5g
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "valkey-cli",
+          "-p",
+          "$$PRIMARY_PORT",
+          "-a",
+          "$$VALKEY_PW",
+          "ping",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - ./.valkey.conf:/etc/valkey/valkey.conf
+    networks:
+      - valkey
 
-            sentinel monitor $$PRIMARY_SET $$PRIMARY_HOST $$PRIMARY_PORT 2
+  valkey-replica:
+    container_name: valkey-replica
+    image: valkey/valkey:9-alpine
+    environment:
+      <<: *valkey-env
+    command: >
+      sh -c 'valkey-server /etc/valkey/valkey.conf
+      --port $$PRIMARY_PORT
+      --replicaof "$$PRIMARY_HOST" $$PRIMARY_PORT
+      --requirepass "$$VALKEY_PW"
+      --masterauth "$$VALKEY_PW"'
+    mem_limit: 2.5g
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "valkey-cli",
+          "-p",
+          "$$PRIMARY_PORT",
+          "-a",
+          "$$VALKEY_PW",
+          "ping",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - ./.valkey.conf:/etc/valkey/valkey.conf
+    depends_on:
+      valkey-primary:
+        condition: service_healthy
+    networks:
+      - valkey
 
-            sentinel auth-pass $$PRIMARY_SET $$VALKEY_PW
-            requirepass $$SENTINEL_PW
+  valkey-sentinel:
+    container_name: valkey-sentinel
+    image: valkey/valkey:9-alpine
+    ports:
+      - "26379:26379"
+    environment:
+      <<: *valkey-env
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Creating sentinel configuration..."
+        cat <<EOF > /tmp/sentinel.conf
+        port $$SENTINEL_PORT
+        dir /tmp
+        sentinel resolve-hostnames yes
 
-            sentinel down-after-milliseconds $$PRIMARY_SET 5000
-            sentinel failover-timeout $$PRIMARY_SET 60000
-            sentinel parallel-syncs $$PRIMARY_SET 1
-            EOF
+        sentinel monitor $$PRIMARY_SET $$PRIMARY_HOST $$PRIMARY_PORT 2
 
-            echo "Starting Sentinel on port $$SENTINEL_PORT..."
-            valkey-sentinel /tmp/sentinel.conf
+        sentinel auth-pass $$PRIMARY_SET $$VALKEY_PW
+        requirepass $$SENTINEL_PW
 
-        mem_limit: 2.5g
-        healthcheck:
-          test: ["CMD-SHELL", "valkey-cli", "-p", "$$SENTINEL_PORT", "-a", "$$SENTINEL_PW", "ping"]
-          interval: 5s
-          timeout: 3s
-          retries: 5
-        depends_on:
-          valkey-primary:
-            condition: service_healthy
-          valkey-replica:
-            condition: service_healthy
-        networks:
-          - valkey
+        sentinel down-after-milliseconds $$PRIMARY_SET 5000
+        sentinel failover-timeout $$PRIMARY_SET 60000
+        sentinel parallel-syncs $$PRIMARY_SET 1
+        EOF
 
-    api-postgresql-service:
-        build: ./api-service
-        container_name: api-postgresql-service
-        environment:
-          # Unlike "nproc" and this method considers container limits
-          # and may return fractional values.
-          - CPU_LIMIT=1.95c
-        ports:
-          - 5862:5862
-        restart: on-failure
-        depends_on:
-          repo-postgres:
-            condition: service_healthy
-          valkey-sentinel:
-            condition: service_healthy
-        links:
-          - repo-postgres
-          - valkey-sentinel
-        networks:
-          - postgres
-          - valkey
+        echo "Starting Sentinel on port $$SENTINEL_PORT..."
+        valkey-sentinel /tmp/sentinel.conf
+    mem_limit: 2.5g
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "valkey-cli",
+          "-p",
+          "$$SENTINEL_PORT",
+          "-a",
+          "$$SENTINEL_PW",
+          "ping",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      valkey-primary:
+        condition: service_healthy
+      valkey-replica:
+        condition: service_healthy
+    networks:
+      - valkey
 
-    web-dashboard:
-        build: ./web-dashboard
-        container_name: web-dashboard
-        environment:
-          # This should match the API service URL.
-          - PUBLIC_ENDPOINT_URL=http://api-postgresql-service:5862/api
-        ports:
-          - 3000:3000
-        restart: on-failure
-        depends_on:
-          - api-postgresql-service
-        networks:
-          - postgres
+  api-postgresql-service:
+    build: ./api-service
+    container_name: api-postgresql-service
+    environment:
+      # Unlike "nproc" and this method considers container limits
+      # and may return fractional values.
+      - CPU_LIMIT=1.95c
+    ports:
+      - 5862:5862
+    restart: on-failure
+    depends_on:
+      repo-postgres:
+        condition: service_healthy
+      valkey-sentinel:
+        condition: service_healthy
+    links:
+      - repo-postgres
+      - valkey-sentinel
+    networks:
+      - postgres
+      - valkey
+
+  web-dashboard:
+    build: ./web-dashboard
+    container_name: web-dashboard
+    environment:
+      - PUBLIC_ENDPOINT_URL=http://api-postgresql-service:5862/api
+    ports:
+      - 3000:3000
+    restart: on-failure
+    depends_on:
+      - api-postgresql-service
+    networks:
+      - postgres
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
 
 networks:
-    postgres:
-        driver: bridge
-    valkey:
-        driver: bridge
+  postgres:
+    driver: bridge
+  valkey:
+    driver: bridge
+  monitoring:
+    driver: bridge

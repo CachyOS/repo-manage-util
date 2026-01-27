@@ -1,3 +1,5 @@
+.cache/
+target/
 *.dump
 *.ctu-info
 .repo_pgdata

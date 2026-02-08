@@ -124,3 +124,9 @@ async def test_suggest_packages(service_client):
     names = suggestions[1]
     assert query == 'unknown'
     assert names == []
+
+    response = await get_packages_suggest(service_client, query='')
+    assert response.status == 400
+
+    response = await get_packages_suggest(service_client, query='a'*65)
+    assert response.status == 400

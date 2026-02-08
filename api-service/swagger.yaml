@@ -52,14 +52,44 @@ paths:
             default: 100
             minimum: 1
       responses:
-        '200':
+        "200":
           description: A successful response containing a list of packages.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PackageSearchResponse'
-        '400':
+                $ref: "#/components/schemas/PackageSearchResponse"
+        "400":
           description: Invalid input for `current_page` or `page_size`.
+  /packages/suggest/{query}:
+    get:
+      summary: Suggest packages
+      description: Provides search suggestions for packages.
+      parameters:
+        - name: query
+          in: path
+          description: The search query prefix.
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Limit the number of suggestions.
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A successful response containing suggestions.
+          content:
+            application/x-suggestions+json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items:
+                        type: string
   /package/{repo}/{arch}/{pkgname}:
     get:
       summary: Get package details
@@ -87,7 +117,7 @@ paths:
             type: string
             example: "openssl"
       responses:
-        '200':
+        "200":
           description: A successful response containing the package details.
           content:
             application/json:
@@ -95,8 +125,45 @@ paths:
                 type: object
                 properties:
                   package:
-                    $ref: '#/components/schemas/PackageDetails'
-        '404':
+                    $ref: "#/components/schemas/PackageDetails"
+        "404":
+          description: The requested package was not found.
+  /package/{repo}/{arch}/{pkgname}/files:
+    get:
+      summary: Get package file list
+      description: Retrieves the list of files for a specific package.
+      parameters:
+        - name: repo
+          in: path
+          description: The name of the repository.
+          required: true
+          schema:
+            type: string
+            example: "my-stable-repo"
+        - name: arch
+          in: path
+          description: The architecture of the package.
+          required: true
+          schema:
+            type: string
+            example: "x86_64"
+        - name: pkgname
+          in: path
+          description: The name of the package.
+          required: true
+          schema:
+            type: string
+            example: "openssl"
+      responses:
+        "200":
+          description: A successful response containing the file list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
           description: The requested package was not found.
   /split/{repo}/{pkgbase}:
     get:
@@ -120,7 +187,7 @@ paths:
             type: string
           example: "vlc"
       responses:
-        '200':
+        "200":
           description: A successful response containing the split packages.
           content:
             application/json:
@@ -130,8 +197,8 @@ paths:
                   split_packages:
                     type: array
                     items:
-                      $ref: '#/components/schemas/BriefPackage'
-        '404':
+                      $ref: "#/components/schemas/BriefPackage"
+        "404":
           description: The requested package base was not found.
 
 components:
@@ -150,7 +217,7 @@ components:
         packages:
           type: array
           items:
-            $ref: '#/components/schemas/BriefPackage'
+            $ref: "#/components/schemas/BriefPackage"
     BriefPackage:
       type: object
       properties:

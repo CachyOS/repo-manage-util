@@ -61,8 +61,7 @@ userver::formats::json::Value PackagesSuggestHandler::HandleRequestJsonThrow(
     const auto& limit = get_arg_helper(request.GetArg("limit")).value_or(10);
     const auto& query = request.GetPathArg("query");
 
-    const auto length = userver::utils::text::utf8::GetCodePointsCount(query);
-    if (length > kMaxLength || length < kMinLength) {
+    if (query.size() > kMaxLength || query.size() < kMinLength) {
         throw userver::server::handlers::ClientError(
             userver::server::handlers::ExternalBody{kLength});
     }

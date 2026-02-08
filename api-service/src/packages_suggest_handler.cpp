@@ -49,6 +49,9 @@ userver::formats::json::Value PackagesSuggestHandler::HandleRequestJsonThrow(
     const userver::server::http::HttpRequest& request,
     const userver::formats::json::Value&,
     userver::server::request::RequestContext&) const {
+    static constexpr auto kLength    = "Query length is invalid!";
+    static constexpr auto kMinLength = 1;
+    static constexpr auto kMaxLength = 64;
 
     // set http headers
     auto& response = request.GetHttpResponse();
@@ -57,6 +60,11 @@ userver::formats::json::Value PackagesSuggestHandler::HandleRequestJsonThrow(
 
     const auto& limit = get_arg_helper(request.GetArg("limit")).value_or(10);
     const auto& query = request.GetPathArg("query");
+
+    if (query.size() > kMaxLength || query.size() < kMinLength) {
+        throw userver::server::handlers::ClientError(
+            userver::server::handlers::ExternalBody{kLength});
+    }
 
     using userver::storages::postgres::ClusterHostType;
     auto result = pg_cluster_->Execute(ClusterHostType::kSlave, query::kSelectTopPackageNames, limit, query);

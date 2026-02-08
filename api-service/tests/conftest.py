@@ -36,6 +36,35 @@ def pgsql_local(service_source_dir, pgsql_local_create):
     )
     return pgsql_local_create(list(databases.values()))
 
+@pytest.fixture(scope='session')
+def userver_testsuite_middleware_enabled():
+    return False
+
+@pytest.fixture(scope='session')
+async def _gate_started(pgsql_local):
+    gate_config = chaos.GateRoute(
+        name='postgres proxy',
+        host_to_server=pgsql_local['init_db'].host,
+        port_to_server=pgsql_local['init_db'].port,
+    )
+    async with chaos.TcpGate(gate_config) as proxy:
+        yield proxy
+
+@pytest.fixture
+def extra_client_deps(_gate_started):
+    pass
+
+# /// [gate fixture]
+@pytest.fixture(name='gate')
+async def _gate_ready(service_client, _gate_started):
+    await _gate_started.to_server_pass()
+    await _gate_started.to_client_pass()
+    _gate_started.start_accepting()
+
+    await _gate_started.wait_for_connections()
+    yield _gate_started
+    # /// [gate fixture]
+
 @pytest.fixture(
     autouse=True,
     params=[0, 1],
@@ -46,6 +75,10 @@ async def pipeline_mode(request, service_client, dynamic_config):
         'POSTGRES_CONNECTION_PIPELINE_EXPERIMENT': request.param,
     })
     await service_client.update_server_state()
+
+@pytest.fixture(scope='session')
+def service_secdist_path(service_source_dir):
+    return service_source_dir / 'secure_data.testing.json'
 
 # /// [service_env]
 @pytest.fixture(scope='session')

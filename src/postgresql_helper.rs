@@ -23,7 +23,10 @@ impl PostgresqlHelper {
         Ok(Self { db })
     }
 
-    /// Insert or update a package in the database
+    /// Insert or update a package in the database.
+    ///
+    /// If the operation fails due to index corruption (e.g. "cannot find insert offset"),
+    /// automatically reindexes the packages table and retries once.
     pub async fn insert_or_update_package(
         &self,
         repo_name: &str,
@@ -33,18 +36,52 @@ impl PostgresqlHelper {
         metadata: PackageMetadata,
         dependencies: PackageDependencies,
     ) -> Result<Uuid> {
-        let package_id = self
+        let meta_pg: pg_impl::models::PackageMetadata = metadata.into();
+        let deps_pg: pg_impl::models::PackageDependencies = dependencies.into();
+
+        let result = self
             .db
             .insert_or_update_package(
                 repo_name,
                 pkg_name,
                 pkg_version,
                 pkg_filename,
-                metadata.into(),
-                dependencies.into(),
+                meta_pg.clone(),
+                deps_pg.clone(),
             )
-            .await
-            .context(anyhow::anyhow!("Failed to insert or update package: {pkg_name}"))?;
+            .await;
+
+        let package_id = match result {
+            Ok(id) => id,
+            Err(ref err) if err.to_string().contains("cannot find insert offset") => {
+                tracing::warn!(
+                    "Detected corrupted index on packages table, reindexing and retrying..."
+                );
+                self.db
+                    .reindex_packages_table()
+                    .await
+                    .context("Failed to reindex packages table")?;
+                tracing::info!("Reindex of packages table completed successfully");
+
+                self.db
+                    .insert_or_update_package(
+                        repo_name,
+                        pkg_name,
+                        pkg_version,
+                        pkg_filename,
+                        meta_pg,
+                        deps_pg,
+                    )
+                    .await
+                    .context(anyhow::anyhow!(
+                        "Failed to insert or update package after reindex: {pkg_name}"
+                    ))?
+            },
+            Err(err) => {
+                return Err(err)
+                    .context(anyhow::anyhow!("Failed to insert or update package: {pkg_name}"));
+            },
+        };
 
         tracing::debug!("'{repo_name}/{pkg_name}-{pkg_version}' ins/upd");
         Ok(package_id)

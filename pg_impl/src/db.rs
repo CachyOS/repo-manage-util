@@ -4,7 +4,7 @@ use crate::models::{
 };
 
 use sqlx::postgres::PgConnectOptions;
-use sqlx::{ConnectOptions, PgPool};
+use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 /// A database access layer for managing repositories and packages.
@@ -68,6 +68,30 @@ impl Db {
         Ok(())
     }
 
+    /// Begins a new database transaction.
+    pub async fn begin(&self) -> Result<Transaction<'_, Postgres>> {
+        Ok(self.pool.begin().await?)
+    }
+
+    /// Inserts a new repository or updates an existing one, using the given executor.
+    pub async fn insert_or_update_repository_on<'e, E>(
+        executor: E,
+        name: &str,
+        info: Option<RepositoryInfo>,
+    ) -> Result<Uuid>
+    where
+        E: sqlx::Executor<'e, Database = Postgres>,
+    {
+        let id = sqlx::query_scalar!(
+            "SELECT helper_schema.insert_or_update_repository($1, $2)",
+            name,
+            info as Option<RepositoryInfo>
+        )
+        .fetch_one(executor)
+        .await?;
+        Ok(id.unwrap())
+    }
+
     /// Inserts a new repository or updates an existing one based on its name.
     ///
     /// If a repository with the given name exists, its description is updated.
@@ -93,14 +117,21 @@ impl Db {
         name: &str,
         info: Option<RepositoryInfo>,
     ) -> Result<Uuid> {
-        let id = sqlx::query_scalar!(
-            "SELECT helper_schema.insert_or_update_repository($1, $2)",
-            name,
-            info as Option<RepositoryInfo>
-        )
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(id.unwrap())
+        Self::insert_or_update_repository_on(&self.pool, name, info).await
+    }
+
+    /// Removes a repository and all of its associated packages, using the given executor.
+    pub async fn remove_existing_repository_on<'e, E>(
+        executor: E,
+        repo_name: &str,
+    ) -> Result<()>
+    where
+        E: sqlx::Executor<'e, Database = Postgres>,
+    {
+        let _ = sqlx::query!("SELECT helper_schema.remove_repository($1)", repo_name)
+            .fetch_optional(executor)
+            .await?;
+        Ok(())
     }
 
     /// Removes a repository and all of its associated packages.
@@ -119,10 +150,7 @@ impl Db {
     /// # }
     /// ```
     pub async fn remove_existing_repository(&self, repo_name: &str) -> Result<()> {
-        let _ = sqlx::query!("SELECT helper_schema.remove_repository($1)", repo_name)
-            .fetch_optional(&self.pool)
-            .await?;
-        Ok(())
+        Self::remove_existing_repository_on(&self.pool, repo_name).await
     }
 
     /// Retrieves all repositories from the database.
@@ -207,6 +235,87 @@ impl Db {
     /// # Ok(())
     /// # }
     /// ```
+    /// Inserts or updates a package using the given executor.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_or_update_package_on<'e, E>(
+        executor: E,
+        repo_name: &str,
+        pkg_name: &str,
+        pkg_version: &str,
+        pkg_filename: &str,
+        metadata: PackageMetadata,
+        dependencies: PackageDependencies,
+    ) -> Result<Uuid>
+    where
+        E: sqlx::Executor<'e, Database = Postgres>,
+    {
+        let id = sqlx::query_scalar!(
+            "SELECT helper_schema.insert_or_update_package($1, $2, $3, $4, $5, $6)",
+            repo_name,
+            pkg_name,
+            pkg_version,
+            pkg_filename,
+            metadata as PackageMetadata,
+            dependencies as PackageDependencies
+        )
+        .fetch_one(executor)
+        .await?;
+        Ok(id.unwrap())
+    }
+
+    /// Inserts a new package or updates an existing one.
+    ///
+    /// A package is uniquely identified by its name, version, and repository.
+    /// If a package with the same details exists, its metadata/depends updated.
+    ///
+    /// Returns the id of the created or updated package.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pg_impl::{db::Db, error::Result, models::{PackageMetadata, PackageDependencies}};
+    /// # use chrono::Utc;
+    /// # async fn run() -> Result<()> {
+    /// # let db = Db::connect("...").await?;
+    /// let metadata = PackageMetadata {
+    ///     pkg_base: Some("pacman".to_string()),
+    ///     pkg_desc: Some("A package manager for Arch Linux".to_string()),
+    ///     pkg_groups: None,
+    ///     pkg_url: Some("https://archlinux.org/pacman/".to_string()),
+    ///     pkg_license: Some(vec!["GPL".to_string()]),
+    ///     pkg_arch: Some("x86_64".to_string()),
+    ///     pkg_builddate: Some(Utc::now()),
+    ///     pkg_packager: Some("John Doe <john.doe@example.com>".to_string()),
+    ///     pkg_csize: Some(102400),
+    ///     pkg_isize: Some(512000),
+    ///     pkg_sha256sum: Some("...".to_string()),
+    ///     pkg_pgpsig: Some("...".to_string()),
+    /// };
+    /// let dependencies = PackageDependencies {
+    ///     pkg_replaces: None,
+    ///     pkg_depends: Some(vec!["glibc".to_string(), "bash".to_string()]),
+    ///     pkg_optdepends: None,
+    ///     pkg_makedepends: None,
+    ///     pkg_checkdepends: None,
+    ///     pkg_conflicts: None,
+    ///     pkg_provides: None,
+    ///     pkg_files: None,
+    /// };
+    ///
+    /// let pkg_id = db
+    ///     .insert_or_update_package(
+    ///         "core",
+    ///         "pacman",
+    ///         "6.0.2-7",
+    ///         "pacman-6.0.2-7-x86_64.pkg.tar.zst",
+    ///         metadata,
+    ///         dependencies,
+    ///     )
+    ///     .await?;
+    /// println!("Package 'pacman' has ID: {pkg_id}");
+    /// # Ok(())
+    /// # }
+    /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn insert_or_update_package(
         &self,
@@ -217,18 +326,32 @@ impl Db {
         metadata: PackageMetadata,
         dependencies: PackageDependencies,
     ) -> Result<Uuid> {
-        let id = sqlx::query_scalar!(
-            "SELECT helper_schema.insert_or_update_package($1, $2, $3, $4, $5, $6)",
+        Self::insert_or_update_package_on(
+            &self.pool,
             repo_name,
             pkg_name,
             pkg_version,
             pkg_filename,
-            metadata as PackageMetadata,
-            dependencies as PackageDependencies
+            metadata,
+            dependencies,
         )
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(id.unwrap())
+        .await
+    }
+
+    /// Removes a package using the given executor.
+    pub async fn remove_package_on<'e, E>(
+        executor: E,
+        repo_name: &str,
+        pkg_name: &str,
+    ) -> Result<bool>
+    where
+        E: sqlx::Executor<'e, Database = Postgres>,
+    {
+        let was_removed =
+            sqlx::query_scalar!("SELECT helper_schema.remove_package($1, $2)", repo_name, pkg_name)
+                .fetch_one(executor)
+                .await?;
+        Ok(was_removed.unwrap_or(false))
     }
 
     /// Removes a package from a repository.
@@ -249,11 +372,7 @@ impl Db {
     /// # }
     /// ```
     pub async fn remove_package(&self, repo_name: &str, pkg_name: &str) -> Result<bool> {
-        let was_removed =
-            sqlx::query_scalar!("SELECT helper_schema.remove_package($1, $2)", repo_name, pkg_name)
-                .fetch_one(&self.pool)
-                .await?;
-        Ok(was_removed.unwrap_or(false))
+        Self::remove_package_on(&self.pool, repo_name, pkg_name).await
     }
 
     /// Gets information about a specific package from a repository.

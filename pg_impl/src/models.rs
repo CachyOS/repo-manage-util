@@ -3,7 +3,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 /// Represents metadata for a package, mapped to the `helper_schema.package_metadata` composite type
-/// in PostgreSQL.
+/// in `PostgreSQL`.
 #[derive(Debug, Clone, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "helper_schema.package_metadata")]
 pub struct PackageMetadata {
@@ -17,7 +17,7 @@ pub struct PackageMetadata {
     pub pkg_url: Option<String>,
     /// A list of licenses under which the package is distributed.
     pub pkg_license: Option<Vec<String>>,
-    /// The architecture the package is built for (e.g., "x86_64", "any").
+    /// The architecture the package is built for (e.g., "`x86_64`", "any").
     pub pkg_arch: Option<String>,
     /// The date and time the package was built.
     pub pkg_builddate: Option<DateTime<Utc>>,
@@ -34,7 +34,7 @@ pub struct PackageMetadata {
 }
 
 /// Represents the dependencies of a package, mapped to the `helper_schema.package_dependencies`
-/// composite type in PostgreSQL.
+/// composite type in `PostgreSQL`.
 #[derive(Debug, Clone, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "helper_schema.package_dependencies")]
 pub struct PackageDependencies {
@@ -57,7 +57,7 @@ pub struct PackageDependencies {
 }
 
 /// Represents information about a repository, mapped to the `helper_schema.repository_info`
-/// composite type in PostgreSQL.
+/// composite type in `PostgreSQL`.
 ///
 /// This is used as an argument type for database functions.
 #[derive(Debug, Clone, PartialEq, sqlx::Type)]
@@ -105,7 +105,7 @@ pub struct Package {
     pub pkg_url: Option<String>,
     /// A list of licenses under which the package is distributed.
     pub pkg_license: Option<Vec<String>>,
-    /// The architecture the package is built for (e.g., "x86_64", "any").
+    /// The architecture the package is built for (e.g., "`x86_64`", "any").
     pub pkg_arch: Option<String>,
     /// The date and time the package was built.
     pub pkg_builddate: Option<DateTime<Utc>>,

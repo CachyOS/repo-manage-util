@@ -236,4 +236,66 @@ mod tests {
         assert_eq!(summary.total_packages, Some(2));
         assert_eq!(summary.unique_packages, Some(2));
     }
+
+    #[sqlx::test(migrations = "./migrations")]
+    async fn test_reindex_packages_table_empty(pool: PgPool) {
+        let db = Db::connect_from_pgpool(pool).await.unwrap();
+
+        // Reindex on an empty table should succeed without error
+        db.reindex_packages_table().await.unwrap();
+    }
+
+    #[sqlx::test(migrations = "./migrations")]
+    async fn test_reindex_packages_table_with_data(pool: PgPool) {
+        let db = Db::connect_from_pgpool(pool).await.unwrap();
+        let repo_name = "core";
+        db.insert_or_update_repository(repo_name, None).await.unwrap();
+
+        // Insert several packages to populate indexes
+        for i in 0..5 {
+            let (filename, version, metadata, dependencies) =
+                create_test_package_parts(&format!("reindex-pkg-{i}"), "1.0.0-1");
+            db.insert_or_update_package(
+                repo_name,
+                &format!("reindex-pkg-{i}"),
+                &version,
+                &filename,
+                metadata,
+                dependencies,
+            )
+            .await
+            .unwrap();
+        }
+
+        // Reindex should succeed with data present
+        db.reindex_packages_table().await.unwrap();
+
+        // Verify all data is still intact and queryable after reindex
+        let all_pkgs = db.get_repo_packages(repo_name).await.unwrap();
+        assert_eq!(all_pkgs.len(), 5);
+
+        // Verify index-dependent operations still work (search uses GIN index)
+        let search_results = db.search_packages(repo_name, "reindex-pkg-0").await.unwrap();
+        assert_eq!(search_results.len(), 1);
+        assert_eq!(search_results[0].pkg_name, Some("reindex-pkg-0".to_string()));
+
+        // Verify inserts still work after reindex (uses idx_packages_name)
+        let (filename, version, metadata, dependencies) =
+            create_test_package_parts("post-reindex-pkg", "1.0.0-1");
+        let id = db
+            .insert_or_update_package(
+                repo_name,
+                "post-reindex-pkg",
+                &version,
+                &filename,
+                metadata,
+                dependencies,
+            )
+            .await
+            .unwrap();
+        assert!(!id.is_nil());
+
+        let all_pkgs = db.get_repo_packages(repo_name).await.unwrap();
+        assert_eq!(all_pkgs.len(), 6);
+    }
 }

@@ -236,4 +236,66 @@ mod tests {
         assert_eq!(summary.total_packages, Some(2));
         assert_eq!(summary.unique_packages, Some(2));
     }
+
+    /// Verifies that repeated upserts with the same (repo_name, pkg_name) never
+    /// create duplicates — they update in place via ON CONFLICT.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn test_upsert_no_duplicates(pool: PgPool) {
+        let db = Db::connect_from_pgpool(pool).await.unwrap();
+        let repo_name = "extra";
+        db.insert_or_update_repository(repo_name, None).await.unwrap();
+
+        // Insert initial version
+        let (filename1, ver1, meta1, deps1) =
+            create_test_package_parts("cargo-sweep", "0.8.0-1");
+        let id1 = db
+            .insert_or_update_package(repo_name, "cargo-sweep", &ver1, &filename1, meta1, deps1)
+            .await
+            .unwrap();
+
+        // Upsert with new version — same (repo_name, pkg_name)
+        let (filename2, ver2, meta2, deps2) =
+            create_test_package_parts("cargo-sweep", "0.8.0-2");
+        let id2 = db
+            .insert_or_update_package(repo_name, "cargo-sweep", &ver2, &filename2, meta2, deps2)
+            .await
+            .unwrap();
+
+        // Must be the same row (ON CONFLICT updates, not inserts)
+        assert_eq!(id1, id2);
+
+        // Only one row should exist
+        let all_pkgs = db.get_repo_packages(repo_name).await.unwrap();
+        assert_eq!(all_pkgs.len(), 1);
+        assert_eq!(all_pkgs[0].pkg_version, Some("0.8.0-2".to_string()));
+    }
+
+    /// Verifies that the same package name in different repos creates separate rows.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn test_upsert_different_repos(pool: PgPool) {
+        let db = Db::connect_from_pgpool(pool).await.unwrap();
+        db.insert_or_update_repository("extra", None).await.unwrap();
+        db.insert_or_update_repository("cachyos-extra-v3", None).await.unwrap();
+
+        let (f1, v1, m1, d1) = create_test_package_parts("cargo-sweep", "0.8.0-2");
+        let (f2, v2, m2, d2) = create_test_package_parts("cargo-sweep", "0.8.0-2.1");
+
+        let id1 = db
+            .insert_or_update_package("extra", "cargo-sweep", &v1, &f1, m1, d1)
+            .await
+            .unwrap();
+        let id2 = db
+            .insert_or_update_package("cachyos-extra-v3", "cargo-sweep", &v2, &f2, m2, d2)
+            .await
+            .unwrap();
+
+        // Different repos = different rows
+        assert_ne!(id1, id2);
+
+        let extra_pkgs = db.get_repo_packages("extra").await.unwrap();
+        assert_eq!(extra_pkgs.len(), 1);
+
+        let cachyos_pkgs = db.get_repo_packages("cachyos-extra-v3").await.unwrap();
+        assert_eq!(cachyos_pkgs.len(), 1);
+    }
 }

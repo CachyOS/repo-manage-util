@@ -380,15 +380,6 @@ impl Db {
         Ok(packages)
     }
 
-    /// Rebuilds all indexes on the packages table.
-    ///
-    /// This is useful for recovering from index corruption errors such as
-    /// "cannot find insert offset" which indicate a corrupted B-tree index.
-    pub async fn reindex_packages_table(&self) -> Result<()> {
-        sqlx::query("REINDEX TABLE packages").execute(&self.pool).await?;
-        Ok(())
-    }
-
     /// Retrieves statistics for a specific repository.
     ///
     /// Returns `Vec<RepoSummary>` containing the statistics.

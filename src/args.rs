@@ -86,7 +86,7 @@ pub(crate) enum Commands {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cli, Commands, FromToProfileCli, SingleProfileCli};
+    use crate::args::{Cli, Commands, FromToProfileCli, SingleProfileCli};
 
     use clap::Parser;
 

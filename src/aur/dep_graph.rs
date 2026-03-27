@@ -129,7 +129,6 @@ mod tests {
             name: name.to_string(),
             package_base: name.to_string(),
             version: "1.0".to_string(),
-            url_path: "".to_string(),
             depends: depends.iter().map(|s| s.to_string()).collect(),
             make_depends: make_depends.iter().map(|s| s.to_string()).collect(),
             opt_depends: vec![],

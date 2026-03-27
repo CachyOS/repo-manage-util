@@ -83,6 +83,8 @@ async fn main() -> Result<()> {
             let repo_dir = get_repo_dir_from_profile(profile);
 
             do_repo_move_pkgs(profile, repo_dir, pg_helper).await?;
+            // TODO(vnepogodin): handle debug packages
+            // move them to debug folder if is set
         },
         Commands::IsPkgsUpToDate(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
@@ -157,9 +159,11 @@ async fn do_repo_reset(
     // Reset db if configured
     if let Some(ref pg) = pg_helper {
         // purge repo packages first then populate
+        let mut tx = pg.begin().await?;
         let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
-        pg.remove_existing_repository(&repo_name).await?;
-        alpm_helper::populate_repo_to_db(&profile.repo, pg).await?;
+        PostgresqlHelper::remove_existing_repository_on(&mut tx, &repo_name).await?;
+        alpm_helper::populate_repo_to_db(&profile.repo, &mut tx).await?;
+        tx.commit().await.context("Failed to commit repo reset transaction")?;
     }
 
     tracing::info!("Repo reset is done!");
@@ -216,9 +220,11 @@ async fn do_repo_update(
     if !new_pkgs.is_empty() || !stale_pkgs.is_empty() {
         // Update db if configured
         if let Some(ref pg) = pg_helper {
+            let mut tx = pg.begin().await?;
             let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
-            pg.remove_packages(&repo_name, &stale_pkgs).await?;
-            alpm_helper::add_pkgs_to_db(&profile.repo, pg, &new_pkgs).await?;
+            PostgresqlHelper::remove_packages_on(&mut tx, &repo_name, &stale_pkgs).await?;
+            alpm_helper::add_pkgs_to_db(&profile.repo, &mut tx, &new_pkgs).await?;
+            tx.commit().await.context("Failed to commit repo update transaction")?;
         }
 
         tracing::info!("Repo update is done!");
@@ -600,9 +606,11 @@ async fn move_packages_from_repo_to_repo(
 
     // Update db if configured
     if let Some(ref pg) = pg_helper {
+        let mut tx = pg.begin().await?;
         let srcrepo_name = pkg_utils::get_repo_db_prefix(&src_profile.repo);
-        pg.remove_packages(&srcrepo_name, &removal_pkgs).await?;
-        alpm_helper::add_pkgs_to_db(&dest_profile.repo, pg, &added_pkgs_files).await?;
+        PostgresqlHelper::remove_packages_on(&mut tx, &srcrepo_name, &removal_pkgs).await?;
+        alpm_helper::add_pkgs_to_db(&dest_profile.repo, &mut tx, &added_pkgs_files).await?;
+        tx.commit().await.context("Failed to commit move packages transaction")?;
     }
 
     tracing::info!("Repo MovePkgsFromRepo2Repo is done!");

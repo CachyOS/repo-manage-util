@@ -4,6 +4,7 @@ use crate::pg_types::{
 
 use anyhow::{Context, Result};
 use pg_impl::db;
+use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 pub struct PostgresqlHelper {
@@ -147,7 +148,7 @@ impl PostgresqlHelper {
         Ok(packages)
     }
 
-    /// Get packages by architecture /// Get packages by architecture
+    /// Get packages by architecture
     pub async fn get_packages_by_arch(
         &self,
         repo_name: &str,
@@ -202,5 +203,98 @@ impl PostgresqlHelper {
         }
 
         Ok(repositories)
+    }
+
+    /// Begins a new database transaction.
+    pub async fn begin(&self) -> Result<Transaction<'_, Postgres>> {
+        self.db.begin().await.context("Failed to begin transaction")
+    }
+
+    /// Insert or update a package within an existing transaction.
+    pub async fn insert_or_update_package_on(
+        tx: &mut Transaction<'_, Postgres>,
+        repo_name: &str,
+        pkg_name: &str,
+        pkg_version: &str,
+        pkg_filename: &str,
+        metadata: PackageMetadata,
+        dependencies: PackageDependencies,
+    ) -> Result<Uuid> {
+        let package_id = db::Db::insert_or_update_package_on(
+            &mut **tx,
+            repo_name,
+            pkg_name,
+            pkg_version,
+            pkg_filename,
+            metadata.into(),
+            dependencies.into(),
+        )
+        .await
+        .context(anyhow::anyhow!("Failed to insert or update package: {pkg_name}"))?;
+
+        tracing::debug!("'{repo_name}/{pkg_name}-{pkg_version}' ins/upd");
+        Ok(package_id)
+    }
+
+    /// Remove a package within an existing transaction.
+    pub async fn remove_package_on(
+        tx: &mut Transaction<'_, Postgres>,
+        repo_name: &str,
+        pkg_name: &str,
+    ) -> Result<bool> {
+        let removed = db::Db::remove_package_on(&mut **tx, repo_name, pkg_name)
+            .await
+            .context("Failed to remove package")?;
+
+        if removed {
+            tracing::debug!("'{repo_name}/{pkg_name}' removed from database");
+        } else {
+            tracing::debug!("'{repo_name}/{pkg_name}' not found in database");
+        }
+
+        Ok(removed)
+    }
+
+    /// Remove multiple packages within an existing transaction.
+    pub async fn remove_packages_on(
+        tx: &mut Transaction<'_, Postgres>,
+        repo_name: &str,
+        stale_pkgs: &[String],
+    ) -> Result<()> {
+        for pkg_name in stale_pkgs {
+            if let Err(err) = Self::remove_package_on(tx, repo_name, pkg_name).await {
+                tracing::error!("Failed to remove '{pkg_name}' from '{repo_name}: {err}");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Insert or update a repository within an existing transaction.
+    pub async fn insert_or_update_repository_on(
+        tx: &mut Transaction<'_, Postgres>,
+        repo_name: &str,
+        info: Option<RepositoryInfo>,
+    ) -> Result<Uuid> {
+        let repo_id = db::Db::insert_or_update_repository_on(
+            &mut **tx,
+            repo_name,
+            info.map(std::convert::Into::into),
+        )
+        .await
+        .context("Failed to insert or update repository")?;
+
+        tracing::debug!("Repository '{repo_name}' ins/upd");
+        Ok(repo_id)
+    }
+
+    /// Remove a repository within an existing transaction.
+    pub async fn remove_existing_repository_on(
+        tx: &mut Transaction<'_, Postgres>,
+        repo_name: &str,
+    ) -> Result<()> {
+        db::Db::remove_existing_repository_on(&mut **tx, repo_name)
+            .await
+            .context("Failed to remove existing repository")
     }
 }

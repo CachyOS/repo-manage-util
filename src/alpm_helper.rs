@@ -6,6 +6,7 @@ use std::{env, fs};
 
 use alpm::Alpm;
 use anyhow::{Context, Result};
+use sqlx::{Postgres, Transaction};
 
 #[derive(Debug, PartialEq)]
 struct RepoData {
@@ -262,17 +263,17 @@ pub fn get_newer_packages_from_reference(
     Ok(packages_to_copy)
 }
 
-// Populates repository to the database
+// Populates repository to the database within a transaction
 pub async fn populate_repo_to_db(
     repo_db_path: &str,
-    postgres_helper: &PostgresqlHelper,
+    tx: &mut Transaction<'_, Postgres>,
 ) -> Result<()> {
     let alpm_handle =
         init_profile_repo_ext(repo_db_path, true).context("Failed to init alpm for the db")?;
 
     // Ensure the repository is registered
     let repo_name = pkg_utils::get_repo_db_prefix(repo_db_path);
-    postgres_helper.insert_or_update_repository(&repo_name, None).await?;
+    PostgresqlHelper::insert_or_update_repository_on(tx, &repo_name, None).await?;
 
     // Get all packages in the repository
     for db in alpm_handle.syncdbs() {
@@ -289,16 +290,16 @@ pub async fn populate_repo_to_db(
             let dependencies: pg_types::PackageDependencies = pkg.into();
 
             // Insert or update the package
-            postgres_helper
-                .insert_or_update_package(
-                    &repo_name,
-                    &pkg_name,
-                    &pkg_version,
-                    pkg_filename,
-                    metadata,
-                    dependencies,
-                )
-                .await?;
+            PostgresqlHelper::insert_or_update_package_on(
+                tx,
+                &repo_name,
+                &pkg_name,
+                &pkg_version,
+                pkg_filename,
+                metadata,
+                dependencies,
+            )
+            .await?;
         }
     }
 
@@ -310,10 +311,10 @@ pub async fn populate_repo_to_db(
     Ok(())
 }
 
-// Populates repository to the database
+// Adds specific packages to the database within a transaction
 pub async fn add_pkgs_to_db(
     repo_db_path: &str,
-    postgres_helper: &PostgresqlHelper,
+    tx: &mut Transaction<'_, Postgres>,
     new_pkgs: &[String],
 ) -> Result<()> {
     let alpm_handle =
@@ -321,7 +322,7 @@ pub async fn add_pkgs_to_db(
 
     // Ensure the repository is registered
     let repo_name = pkg_utils::get_repo_db_prefix(repo_db_path);
-    postgres_helper.insert_or_update_repository(&repo_name, None).await?;
+    PostgresqlHelper::insert_or_update_repository_on(tx, &repo_name, None).await?;
 
     // Iterate over all new packages
     for new_pkgname in new_pkgs {
@@ -343,16 +344,16 @@ pub async fn add_pkgs_to_db(
             let dependencies: pg_types::PackageDependencies = pkg.into();
 
             // Insert or update the package
-            postgres_helper
-                .insert_or_update_package(
-                    &repo_name,
-                    &pkg_name,
-                    &pkg_version,
-                    pkg_filename,
-                    metadata,
-                    dependencies,
-                )
-                .await?;
+            PostgresqlHelper::insert_or_update_package_on(
+                tx,
+                &repo_name,
+                &pkg_name,
+                &pkg_version,
+                pkg_filename,
+                metadata,
+                dependencies,
+            )
+            .await?;
         }
     }
 

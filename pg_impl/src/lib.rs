@@ -246,16 +246,14 @@ mod tests {
         db.insert_or_update_repository(repo_name, None).await.unwrap();
 
         // Insert initial version
-        let (filename1, ver1, meta1, deps1) =
-            create_test_package_parts("cargo-sweep", "0.8.0-1");
+        let (filename1, ver1, meta1, deps1) = create_test_package_parts("cargo-sweep", "0.8.0-1");
         let id1 = db
             .insert_or_update_package(repo_name, "cargo-sweep", &ver1, &filename1, meta1, deps1)
             .await
             .unwrap();
 
         // Upsert with new version — same (repo_name, pkg_name)
-        let (filename2, ver2, meta2, deps2) =
-            create_test_package_parts("cargo-sweep", "0.8.0-2");
+        let (filename2, ver2, meta2, deps2) = create_test_package_parts("cargo-sweep", "0.8.0-2");
         let id2 = db
             .insert_or_update_package(repo_name, "cargo-sweep", &ver2, &filename2, meta2, deps2)
             .await
@@ -280,10 +278,8 @@ mod tests {
         let (f1, v1, m1, d1) = create_test_package_parts("cargo-sweep", "0.8.0-2");
         let (f2, v2, m2, d2) = create_test_package_parts("cargo-sweep", "0.8.0-2.1");
 
-        let id1 = db
-            .insert_or_update_package("extra", "cargo-sweep", &v1, &f1, m1, d1)
-            .await
-            .unwrap();
+        let id1 =
+            db.insert_or_update_package("extra", "cargo-sweep", &v1, &f1, m1, d1).await.unwrap();
         let id2 = db
             .insert_or_update_package("cachyos-extra-v3", "cargo-sweep", &v2, &f2, m2, d2)
             .await

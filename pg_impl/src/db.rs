@@ -121,10 +121,7 @@ impl Db {
     }
 
     /// Removes a repository and all of its associated packages, using the given executor.
-    pub async fn remove_existing_repository_on<'e, E>(
-        executor: E,
-        repo_name: &str,
-    ) -> Result<()>
+    pub async fn remove_existing_repository_on<'e, E>(executor: E, repo_name: &str) -> Result<()>
     where
         E: sqlx::Executor<'e, Database = Postgres>,
     {

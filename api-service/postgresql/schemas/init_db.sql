@@ -77,8 +77,6 @@ CREATE TABLE IF NOT EXISTS packages (
     CONSTRAINT uniq_pkg UNIQUE(repo_name, pkg_name)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_pkg_idx ON packages (repo_name, pkg_name);
-
 CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(pkg_name);
 CREATE INDEX IF NOT EXISTS idx_packages_filename ON packages(pkg_filename);
 CREATE INDEX IF NOT EXISTS idx_packages_arch ON packages(pkg_arch);

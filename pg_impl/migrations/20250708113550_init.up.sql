@@ -110,11 +110,6 @@ CREATE OR REPLACE FUNCTION helper_schema.insert_or_update_package(
 DECLARE
     v_package_id UUID;
 BEGIN
-    -- Acquire a transaction-scoped advisory lock on (repo_name, pkg_name).
-    -- Serializes concurrent upserts for the same package, preventing duplicates
-    -- even if the unique index is corrupted or under concurrent pressure.
-    PERFORM pg_advisory_xact_lock(hashtext(_repo_name || '/' || _pkg_name));
-
     INSERT INTO packages (
         repo_name, pkg_name, pkg_version, pkg_filename,
         pkg_base, pkg_desc, pkg_groups, pkg_url, pkg_license, pkg_arch, pkg_builddate, pkg_packager,
@@ -166,8 +161,6 @@ CREATE OR REPLACE FUNCTION helper_schema.remove_package(_repo_name text, _pkg_na
 DECLARE
     v_deleted_count INTEGER;
 BEGIN
-    PERFORM pg_advisory_xact_lock(hashtext(_repo_name || '/' || _pkg_name));
-
     DELETE FROM packages
     WHERE
         repo_name = _repo_name AND

@@ -82,22 +82,22 @@ pub struct RepoSummary {
 impl From<&alpm::Package> for PackageMetadata {
     fn from(pkg: &alpm::Package) -> Self {
         Self {
-            pkg_base: pkg.base().map(|s| s.to_string()),
-            pkg_desc: pkg.desc().map(|s| s.to_string()),
-            pkg_groups: Some(pkg.groups().iter().map(|s| s.to_string()).collect()),
-            pkg_url: pkg.url().map(|s| s.to_string()),
-            pkg_license: Some(pkg.licenses().iter().map(|s| s.to_string()).collect()),
-            pkg_arch: pkg.arch().map(|s| s.to_string()),
+            pkg_base: pkg.base().map(std::string::ToString::to_string),
+            pkg_desc: pkg.desc().map(std::string::ToString::to_string),
+            pkg_groups: Some(pkg.groups().iter().map(std::string::ToString::to_string).collect()),
+            pkg_url: pkg.url().map(std::string::ToString::to_string),
+            pkg_license: Some(pkg.licenses().iter().map(std::string::ToString::to_string).collect()),
+            pkg_arch: pkg.arch().map(std::string::ToString::to_string),
             pkg_builddate: Some(
                 DateTime::from_timestamp(pkg.build_date(), 0).expect("invalid timestamp"),
             ),
-            pkg_packager: pkg.packager().map(|s| s.to_string()),
+            pkg_packager: pkg.packager().map(std::string::ToString::to_string),
             pkg_csize: Some(pkg.size()),
             pkg_isize: Some(pkg.isize()),
-            pkg_sha256sum: pkg.sha256sum().map(|s| s.to_string()),
+            pkg_sha256sum: pkg.sha256sum().map(std::string::ToString::to_string),
             // TODO(vnepogodin): should store keyid instead, for which need to get handle from
             // package
-            pkg_pgpsig: pkg.base64_sig().map(|x| x.to_owned()),
+            pkg_pgpsig: pkg.base64_sig().map(std::borrow::ToOwned::to_owned),
         }
     }
 }
@@ -105,13 +105,13 @@ impl From<&alpm::Package> for PackageMetadata {
 impl From<&alpm::Package> for PackageDependencies {
     fn from(pkg: &alpm::Package) -> Self {
         Self {
-            pkg_replaces: Some(pkg.replaces().into_iter().map(|s| s.to_string()).collect()),
-            pkg_depends: Some(pkg.depends().into_iter().map(|s| s.to_string()).collect()),
-            pkg_optdepends: Some(pkg.optdepends().into_iter().map(|s| s.to_string()).collect()),
-            pkg_makedepends: Some(pkg.makedepends().into_iter().map(|s| s.to_string()).collect()),
-            pkg_checkdepends: Some(pkg.checkdepends().into_iter().map(|s| s.to_string()).collect()),
-            pkg_conflicts: Some(pkg.conflicts().into_iter().map(|s| s.to_string()).collect()),
-            pkg_provides: Some(pkg.provides().into_iter().map(|s| s.to_string()).collect()),
+            pkg_replaces: Some(pkg.replaces().into_iter().map(std::string::ToString::to_string).collect()),
+            pkg_depends: Some(pkg.depends().into_iter().map(std::string::ToString::to_string).collect()),
+            pkg_optdepends: Some(pkg.optdepends().into_iter().map(std::string::ToString::to_string).collect()),
+            pkg_makedepends: Some(pkg.makedepends().into_iter().map(std::string::ToString::to_string).collect()),
+            pkg_checkdepends: Some(pkg.checkdepends().into_iter().map(std::string::ToString::to_string).collect()),
+            pkg_conflicts: Some(pkg.conflicts().into_iter().map(std::string::ToString::to_string).collect()),
+            pkg_provides: Some(pkg.provides().into_iter().map(std::string::ToString::to_string).collect()),
             pkg_files: Some(
                 pkg.files()
                     .files()

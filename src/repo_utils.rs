@@ -10,10 +10,17 @@ use subprocess::{Exec, Redirection};
 
 // Calls repo-add on provided repo and package files
 pub fn handle_repo_add(profile: &config::Profile, pkgfiles: &[String]) -> Result<()> {
-    let mut repo_add_args = profile.add_params.clone();
-    repo_add_args.push(profile.repo.clone());
+    repo_add(&profile.repo, &profile.add_params, pkgfiles)
+}
 
-    // push provided package files into repo-add args
+// Calls repo-remove on provided repo and package names
+pub fn handle_repo_remove(profile: &config::Profile, pkgname_list: &[String]) -> Result<()> {
+    repo_remove(&profile.repo, &profile.rm_params, pkgname_list)
+}
+
+pub fn repo_add(repo_db: &str, add_params: &[String], pkgfiles: &[String]) -> Result<()> {
+    let mut repo_add_args = add_params.to_vec();
+    repo_add_args.push(repo_db.to_string());
     repo_add_args.extend_from_slice(pkgfiles);
     tracing::debug!("repo_add_args := {repo_add_args:?}");
 
@@ -30,18 +37,14 @@ pub fn handle_repo_add(profile: &config::Profile, pkgfiles: &[String]) -> Result
     }
     tracing::debug!("repo-add output:\n{proc_output}");
 
-    // update lastupdate date
-    set_repo_lastupdate(&profile.repo)?;
+    set_repo_lastupdate(repo_db)?;
 
     Ok(())
 }
 
-// Calls repo-remove on provided repo and package names
-pub fn handle_repo_remove(profile: &config::Profile, pkgname_list: &[String]) -> Result<()> {
-    let mut repo_remove_args = profile.rm_params.clone();
-    repo_remove_args.push(profile.repo.clone());
-
-    // push provided package names into repo-remove args
+pub fn repo_remove(repo_db: &str, rm_params: &[String], pkgname_list: &[String]) -> Result<()> {
+    let mut repo_remove_args = rm_params.to_vec();
+    repo_remove_args.push(repo_db.to_string());
     repo_remove_args.extend_from_slice(pkgname_list);
     tracing::debug!("repo_remove_args := {repo_remove_args:?}");
 
@@ -58,8 +61,7 @@ pub fn handle_repo_remove(profile: &config::Profile, pkgname_list: &[String]) ->
     }
     tracing::debug!("repo-remove output:\n{proc_output}");
 
-    // update lastupdate date
-    set_repo_lastupdate(&profile.repo)?;
+    set_repo_lastupdate(repo_db)?;
 
     Ok(())
 }

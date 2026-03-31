@@ -26,7 +26,7 @@ pub struct Profile {
     pub backup_dir: Option<String>,
     /// The number of package versions to keep in the backup directory
     pub backup_num: Option<usize>,
-    pub debug_dir: Option<String>,
+    pub debug_repo: Option<String>,
     #[serde(default = "default_interactive")]
     pub interactive: bool,
     pub reference_repo: Option<String>,
@@ -108,7 +108,9 @@ mod tests {
                     backup: true,
                     backup_num: None,
                     backup_dir: Some("/home/testuser/backup_repos/repof".to_string()),
-                    debug_dir: Some("/home/testuser/debug_repos/repof".to_string()),
+                    debug_repo: Some(
+                        "/home/testuser/debug_repos/repof/repof-debug.db.tar.zst".to_string(),
+                    ),
                     interactive: false,
                     reference_repo: Some(
                         "/home/testanotheruser/repos/reposecond-super/reposecond-super.db.tar.zst"
@@ -124,7 +126,10 @@ mod tests {
                     backup: true,
                     backup_num: None,
                     backup_dir: Some("/home/testuser/backup_repos/reposecond".to_string()),
-                    debug_dir: Some("/home/testuser/debug_repos/reposecond".to_string()),
+                    debug_repo: Some(
+                        "/home/testuser/debug_repos/reposecond/reposecond-debug.db.tar.zst"
+                            .to_string(),
+                    ),
                     interactive: false,
                     reference_repo: Some(
                         "/home/testanotheruser/repos/reposecond-super/reposecond-super.db.tar.zst"

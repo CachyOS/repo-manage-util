@@ -71,9 +71,9 @@ postgresql_url = "postgresql://user:1234@localhost:5432/pg_repomanage"
   #   directory containing the repository database.
   backup_dir = "/home/testuser/backup_repos/repof"
 
-  # [Optional] Directory to store debug packages.
+  # [Optional] Path to the debug repository database file.
   # This requires an absolute path.
-  debug_dir = "/home/testuser/debug_repos/repof"
+  debug_repo = "/home/testuser/debug_repos/repof/repof-debug.db.tar.zst"
 
   # [Optional] Number of old package versions to keep in the backup directory.
   # If commented out or not set, an unlimited number of backups will be kept.
@@ -132,9 +132,9 @@ postgresql_url = "postgresql://user:1234@localhost:5432/pg_repomanage"
   #   directory containing the repository database.
   backup_dir = "/home/testuser/backup_repos/reposecond"
 
-  # [Optional] Directory to store debug packages.
+  # [Optional] Path to the debug repository database file.
   # This requires an absolute path.
-  debug_dir = "/home/testuser/debug_repos/reposecond"
+  debug_repo = "/home/testuser/debug_repos/reposecond/reposecond-debug.db.tar.zst"
 
   # [Optional] Number of old package versions to keep in the backup directory.
   # If commented out or not set, an unlimited number of backups will be kept.

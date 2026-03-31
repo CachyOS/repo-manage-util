@@ -59,32 +59,24 @@ async fn main() -> Result<()> {
             tracing::debug!("repo db path := {repo_db_pattern}");
 
             do_repo_reset(profile, &repo_db_pattern, repo_dir, pg_helper, args.only_pg).await?;
-            // TODO(vnepogodin): handle debug packages
-            // move them to debug folder if is set
         },
         Commands::Update(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
             do_repo_update(profile, repo_dir, pg_helper).await?;
-            // TODO(vnepogodin): handle debug packages
-            // move them to debug folder if is set
         },
         Commands::Sync(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
             do_repo_sync(profile, repo_dir).await?;
-            // TODO(vnepogodin): handle debug packages
-            // move them to debug folder if is set
         },
         Commands::MovePkgsToRepo(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
             let repo_dir = get_repo_dir_from_profile(profile);
 
             do_repo_move_pkgs(profile, repo_dir, pg_helper).await?;
-            // TODO(vnepogodin): handle debug packages
-            // move them to debug folder if is set
         },
         Commands::IsPkgsUpToDate(args) => {
             let profile = get_profile_from_config(&args.profile, &config)?;
@@ -140,6 +132,19 @@ async fn do_repo_reset(
             }
         }
 
+        // Also wipe debug repo DB so it gets rebuilt from current debug packages
+        if let Some(ref debug_repo) = profile.debug_repo {
+            if debug_repo != &profile.repo {
+                let debug_dir = Path::new(debug_repo).parent().unwrap();
+                let debug_db_prefix = pkg_utils::get_repo_db_prefix(debug_repo);
+                let debug_db_pattern =
+                    format!("{}/{debug_db_prefix}.*", debug_dir.to_str().unwrap());
+                for entry in glob::glob(&debug_db_pattern)? {
+                    fs::remove_file(entry?)?;
+                }
+            }
+        }
+
         let mut pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
         let outdated_pkgs = pkg_utils::get_outdated_pkgs(&pkgs_list);
         pkgs_list.retain(|pkg| !outdated_pkgs.contains(pkg));
@@ -149,8 +154,31 @@ async fn do_repo_reset(
             pkg_utils::remove_pkgs_without_sig(&mut pkgs_list);
         }
 
+        let debug_pkgs = if profile.debug_repo.is_some() {
+            pkg_utils::exclude_debug_pkgs(&mut pkgs_list)
+        } else {
+            vec![]
+        };
+
         // run repo-add
         repo_utils::handle_repo_add(profile, &pkgs_list)?;
+
+        // move debug pkgs from prod to debug dir, then rebuild debug DB from all debug dir contents
+        if let Some(ref debug_repo) = profile.debug_repo {
+            if debug_repo != &profile.repo {
+                let debug_dir = Path::new(debug_repo).parent().unwrap();
+                if !debug_pkgs.is_empty() {
+                    fs::create_dir_all(debug_dir)?;
+                    handle_pkgfiles_move(&debug_pkgs, debug_dir.to_str().unwrap())?;
+                }
+                if debug_dir.exists() {
+                    let all_debug = pkg_utils::find_packages_in_dir(debug_dir)?;
+                    if !all_debug.is_empty() {
+                        repo_utils::repo_add(debug_repo, &profile.add_params, &all_debug)?;
+                    }
+                }
+            }
+        }
 
         // handle removal/backup here
         handle_outdated_pkgs(profile, &outdated_pkgs)?;
@@ -193,6 +221,12 @@ async fn do_repo_update(
         pkg_utils::remove_pkgs_without_sig(&mut new_pkgs);
     }
 
+    let debug_pkgs = if profile.debug_repo.is_some() {
+        pkg_utils::exclude_debug_pkgs(&mut new_pkgs)
+    } else {
+        vec![]
+    };
+
     // if update available then update the DB accordingly
     // overwise silently skip and go to stale packages handling
     if !new_pkgs.is_empty() {
@@ -206,6 +240,8 @@ async fn do_repo_update(
         handle_outdated_pkgs(profile, &outdated_pkgs)?;
     }
 
+    route_debug_pkgs_to_debug_repo(profile, &debug_pkgs, false)?;
+
     // 2. handle stale packages
     let stale_pkgs =
         alpm_helper::get_stale_packages(&profile.repo).context("Failed to get stale pkgs")?;
@@ -214,6 +250,17 @@ async fn do_repo_update(
     // overwise silently skip and finish update command
     if !stale_pkgs.is_empty() {
         repo_utils::handle_repo_remove(profile, &stale_pkgs)?;
+    }
+
+    // remove stale packages from debug repo DB
+    if let Some(ref debug_repo) = profile.debug_repo {
+        if debug_repo != &profile.repo {
+            let stale_debug = alpm_helper::get_stale_packages(debug_repo)
+                .context("Failed to get stale debug pkgs")?;
+            if !stale_debug.is_empty() {
+                repo_utils::repo_remove(debug_repo, &profile.rm_params, &stale_debug)?;
+            }
+        }
     }
 
     // report status only when had some work
@@ -242,7 +289,7 @@ async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> 
     }
 
     let reference_repo_path = profile.reference_repo.as_ref().unwrap();
-    let packages_to_copy =
+    let mut packages_to_copy =
         alpm_helper::get_newer_packages_from_reference(&profile.repo, reference_repo_path)
             .context("Failed to get newer packages from reference repo")?;
 
@@ -257,6 +304,12 @@ async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> 
         return Ok(());
     }
 
+    let debug_pkgs = if profile.debug_repo.is_some() {
+        pkg_utils::exclude_debug_pkgs(&mut packages_to_copy)
+    } else {
+        vec![]
+    };
+
     // Copy the packages to the profile repository directory
     for package_path in &packages_to_copy {
         let ref_pkg = pkg_utils::get_pkg_db_pair_from_path(package_path);
@@ -267,6 +320,8 @@ async fn do_repo_sync(profile: &config::Profile, repo_dir: &Path) -> Result<()> 
             return Ok(());
         }
     }
+
+    route_debug_pkgs_to_debug_repo(profile, &debug_pkgs, true)?;
 
     // TODO: handle new packages(which dont exist in repo, but exist in ref repo), handle stale
     // packages(which no longer exist in ref repo)
@@ -314,14 +369,11 @@ async fn do_repo_move_pkgs(
         pkg_to_move_list.retain(|pkg| !already_in_repo.contains(pkg));
     }
 
-    // exclude debug packages if debug_dir is configured for the profile
-    let debug_pkgs =
-        if profile.debug_dir.is_some() && profile.debug_dir != Some(profile.repo.clone()) {
-            tracing::debug!("Separate debug dir is enabled, excluding debug packages");
-            pkg_utils::exclude_debug_pkgs(&mut pkg_to_move_list)
-        } else {
-            vec![]
-        };
+    let debug_pkgs = if profile.debug_repo.is_some() {
+        pkg_utils::exclude_debug_pkgs(&mut pkg_to_move_list)
+    } else {
+        vec![]
+    };
 
     if let Err(pkg_move_err) = handle_pkgfiles_move(&pkg_to_move_list, repo_dir.to_str().unwrap()) {
         tracing::error!("Error occurred while moving package files: {pkg_move_err}");
@@ -334,14 +386,7 @@ async fn do_repo_move_pkgs(
     do_repo_update(profile, repo_dir, pg_helper).await?;
 
     // 2.1. move debug packages into the debug dir if configured
-    // TODO(vnepogodin): do debug specific repo update if configured
-    if !debug_pkgs.is_empty()
-        && let Err(pkg_move_err) =
-            handle_pkgfiles_move(&debug_pkgs, profile.debug_dir.as_ref().unwrap())
-    {
-        tracing::error!("Error occurred while moving debug packages: {pkg_move_err}");
-        return Ok(());
-    }
+    route_debug_pkgs_to_debug_repo(profile, &debug_pkgs, false)?;
 
     // report status only when had some work
     if pkg_to_move_list.is_empty() {
@@ -410,13 +455,12 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
         }
     }
 
-    // 4. handle debug packages
-    if profile.debug_dir.is_some() && profile.debug_dir != Some(profile.repo.clone()) {
-        // should detect debug package which located in repo profile
-        let debug_pkgs = pkg_utils::get_debug_packages(&pkgs_list);
-        if !debug_pkgs.is_empty() {
-            for debug_pkg in debug_pkgs {
-                let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(&debug_pkg);
+    // 4. report debug packages that are still in the prod repo
+    if let Some(ref debug_repo) = profile.debug_repo {
+        if debug_repo != &profile.repo {
+            let debug_pkgs = pkg_utils::get_debug_packages(&pkgs_list);
+            for debug_pkg in &debug_pkgs {
+                let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(debug_pkg);
                 tracing::info!("Found debug package in repo '{repo_db_prefix}': '{pkg_pair}'");
             }
         }
@@ -473,42 +517,35 @@ async fn do_repo_aur(repo_dir: &Path, order_file: Option<PathBuf>, dry_run: bool
     Ok(())
 }
 
-fn do_debug_packages_check(profile: &config::Profile, repo_dir: &Path) -> Result<()> {
-    // 1. check if we have debug repo assigned
-    if profile.debug_dir.is_none() || profile.debug_dir == Some(profile.repo.clone()) {
-        tracing::debug!("Separate debug repo is disabled for this profile");
-        return Ok(());
-    }
-
-    // NOTE: lets just move debug packages into the directory of the repo
-    // don't touch the debug repo DB at all.
-    // let debug_repo_dir = Path::new(profile.debug_dir.as_ref().unwrap()).parent().unwrap();
-
-    // 2. get all debug packages in the repo it self, to move them into the debug directory
-    let pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
-    let debug_pkgs = pkg_utils::get_debug_packages(&pkgs_list);
+/// Transfer already-extracted debug package files to the debug repo dir and add to its ALPM DB.
+fn route_debug_pkgs_to_debug_repo(
+    profile: &config::Profile,
+    debug_pkgs: &[String],
+    copy: bool,
+) -> Result<()> {
+    let debug_repo = match &profile.debug_repo {
+        Some(dr) if dr != &profile.repo => dr,
+        _ => return Ok(()),
+    };
     if debug_pkgs.is_empty() {
         return Ok(());
     }
 
-    // // the debug_dir is the parent dir without the repo
-    // if let Some(debug_dir) = &profile.debug_dir {
-    //     let debug_pkgs_list =
-    //         glob::glob(&format!("{}/*-debug-*.pkg.tar.zst",
-    // profile.debug_dir.as_ref().unwrap()))?             .map(|x|
-    // x.unwrap().to_str().unwrap().to_owned())             .collect::<Vec<_>>();
-
-    //     pkgs_list.append(&mut debug_pkgs_list);
-    // }
-
     tracing::debug!("Found debug packages: {debug_pkgs:?}");
-    if let Err(pkg_move_err) =
-        handle_pkgfiles_move(&debug_pkgs, profile.debug_dir.as_ref().unwrap())
-    {
-        tracing::error!("Error occurred while moving debug packages: {pkg_move_err}");
-        return Ok(());
-    }
+    let debug_dir = Path::new(debug_repo).parent().unwrap();
+    fs::create_dir_all(debug_dir)?;
 
+    let debug_dir_str = debug_dir.to_str().unwrap();
+    if copy {
+        handle_pkgfiles_copy(debug_pkgs, debug_dir_str)?;
+    } else {
+        handle_pkgfiles_move(debug_pkgs, debug_dir_str)?;
+    }
+    let debug_files = pkg_utils::replace_base_dir_for_pkgs(debug_pkgs, debug_dir);
+    repo_utils::repo_add(debug_repo, &profile.add_params, &debug_files)?;
+
+    let action = if copy { "Copied" } else { "Moved" };
+    tracing::info!("{action} {} debug package(s) to debug repo", debug_pkgs.len());
     Ok(())
 }
 
@@ -654,6 +691,28 @@ fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> 
         do_backup_repo_cleanup(profile)?;
     }
 
+    // 3. clean up outdated debug package files in the debug repo dir
+    if let Some(ref debug_repo) = profile.debug_repo {
+        if debug_repo != &profile.repo {
+            let debug_dir = Path::new(debug_repo).parent().unwrap();
+            if debug_dir.exists() {
+                let debug_pkgs = pkg_utils::find_packages_in_dir(debug_dir)?;
+                let outdated_debug = pkg_utils::get_outdated_pkgs(&debug_pkgs);
+                for pkg in &outdated_debug {
+                    let entry = pkg_utils::get_pkg_db_pair_from_path(pkg);
+                    tracing::info!("rm outdated debug pkg '{entry}'..");
+                    if let Err(e) = fs::remove_file(pkg) {
+                        tracing::error!("Failed to remove outdated debug package '{pkg}': {e}");
+                    }
+                    let sig = format!("{pkg}.sig");
+                    if Path::new(&sig).exists() {
+                        let _ = fs::remove_file(&sig);
+                    }
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -707,6 +766,15 @@ fn handle_pkgfile_move(pkg_to_move: &str, dest_dir: &str) -> Result<()> {
     Ok(())
 }
 
+fn handle_pkgfiles_copy(pkg_to_copy_list: &[String], dest_dir: &str) -> Result<()> {
+    // now lets copy
+    for pkg_to_copy in pkg_to_copy_list {
+        handle_pkgfile_copy(pkg_to_copy, dest_dir)?;
+    }
+
+    Ok(())
+}
+
 fn handle_pkgfiles_move(pkg_to_move_list: &[String], dest_dir: &str) -> Result<()> {
     // now lets move
     for pkg_to_move in pkg_to_move_list {
@@ -714,4 +782,128 @@ fn handle_pkgfiles_move(pkg_to_move_list: &[String], dest_dir: &str) -> Result<(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod debug_pkg_tests {
+    use super::*;
+
+    fn create_dummy_pkg(dir: &Path, filename: &str) {
+        let pkg_path = dir.join(filename);
+        let sig_path = dir.join(format!("{filename}.sig"));
+        fs::write(&pkg_path, b"dummy").unwrap();
+        fs::write(&sig_path, b"sig").unwrap();
+    }
+
+    fn make_profile(debug_repo: Option<String>) -> config::Profile {
+        config::Profile {
+            repo: "/tmp/fake/repo.db.tar.zst".to_string(),
+            add_params: vec![],
+            rm_params: vec![],
+            require_signature: false,
+            backup: false,
+            backup_dir: None,
+            backup_num: None,
+            debug_repo,
+            interactive: false,
+            reference_repo: None,
+        }
+    }
+
+    #[test]
+    fn test_debug_pkgs_stripped_and_moved() {
+        let prod = tempfile::tempdir().unwrap();
+        let debug = tempfile::tempdir().unwrap();
+
+        create_dummy_pkg(prod.path(), "foo-1.0-1-x86_64.pkg.tar.zst");
+        create_dummy_pkg(prod.path(), "foo-debug-1.0-1-x86_64.pkg.tar.zst");
+
+        let mut pkgs = pkg_utils::find_packages_in_dir(prod.path()).unwrap();
+        let debug_pkgs = pkg_utils::exclude_debug_pkgs(&mut pkgs);
+
+        assert_eq!(pkgs.len(), 1);
+        assert!(pkgs[0].contains("foo-1.0"));
+        assert_eq!(debug_pkgs.len(), 1);
+        assert!(debug_pkgs[0].contains("foo-debug"));
+
+        handle_pkgfiles_move(&debug_pkgs, debug.path().to_str().unwrap()).unwrap();
+
+        assert!(debug.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+        assert!(debug.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst.sig").exists());
+        assert!(prod.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists());
+        assert!(prod.path().join("foo-1.0-1-x86_64.pkg.tar.zst.sig").exists());
+        assert!(!prod.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+    }
+
+    #[test]
+    fn test_all_debug_pkgs_moved_from_prod() {
+        let prod = tempfile::tempdir().unwrap();
+        let debug = tempfile::tempdir().unwrap();
+
+        create_dummy_pkg(prod.path(), "bar-debug-2.0-1-x86_64.pkg.tar.zst");
+        create_dummy_pkg(prod.path(), "baz-debug-1.0-1-x86_64.pkg.tar.zst");
+
+        let mut pkgs = pkg_utils::find_packages_in_dir(prod.path()).unwrap();
+        let debug_pkgs = pkg_utils::exclude_debug_pkgs(&mut pkgs);
+
+        assert!(pkgs.is_empty());
+        assert_eq!(debug_pkgs.len(), 2);
+
+        handle_pkgfiles_move(&debug_pkgs, debug.path().to_str().unwrap()).unwrap();
+
+        assert!(debug.path().join("bar-debug-2.0-1-x86_64.pkg.tar.zst").exists());
+        assert!(debug.path().join("baz-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+
+        let remaining = pkg_utils::find_packages_in_dir(prod.path()).unwrap();
+        assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn test_non_debug_pkgs_untouched() {
+        let prod = tempfile::tempdir().unwrap();
+
+        create_dummy_pkg(prod.path(), "foo-1.0-1-x86_64.pkg.tar.zst");
+        create_dummy_pkg(prod.path(), "bar-2.0-1-x86_64.pkg.tar.zst");
+
+        let mut pkgs = pkg_utils::find_packages_in_dir(prod.path()).unwrap();
+        let debug_pkgs = pkg_utils::exclude_debug_pkgs(&mut pkgs);
+
+        assert!(debug_pkgs.is_empty());
+        assert_eq!(pkgs.len(), 2);
+
+        assert!(prod.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists());
+        assert!(prod.path().join("bar-2.0-1-x86_64.pkg.tar.zst").exists());
+    }
+
+    #[test]
+    fn test_no_debug_repo_configured_is_noop() {
+        let profile = make_profile(None);
+        let prod = tempfile::tempdir().unwrap();
+        create_dummy_pkg(prod.path(), "foo-debug-1.0-1-x86_64.pkg.tar.zst");
+
+        let mut pkgs = pkg_utils::find_packages_in_dir(prod.path()).unwrap();
+        let debug_pkgs = pkg_utils::exclude_debug_pkgs(&mut pkgs);
+        let result = route_debug_pkgs_to_debug_repo(&profile, &debug_pkgs, false);
+        assert!(result.is_ok());
+
+        assert!(prod.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+    }
+
+    #[test]
+    fn test_debug_pkgs_moved_to_new_dir() {
+        let prod = tempfile::tempdir().unwrap();
+        let base = tempfile::tempdir().unwrap();
+        let debug_dir = base.path().join("new_debug_dir");
+
+        create_dummy_pkg(prod.path(), "foo-debug-1.0-1-x86_64.pkg.tar.zst");
+
+        let mut pkgs = pkg_utils::find_packages_in_dir(prod.path()).unwrap();
+        let debug_pkgs = pkg_utils::exclude_debug_pkgs(&mut pkgs);
+
+        assert!(!debug_dir.exists());
+        fs::create_dir_all(&debug_dir).unwrap();
+        handle_pkgfiles_move(&debug_pkgs, debug_dir.to_str().unwrap()).unwrap();
+
+        assert!(debug_dir.join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+    }
 }

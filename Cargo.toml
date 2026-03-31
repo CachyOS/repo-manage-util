@@ -29,6 +29,9 @@ tar = "0.4"
 reqwest = "0.13"
 pkg-manage-util = { git = "https://github.com/CachyOS/pkg-manage-util", rev = "927a956671108268d252523d6a0764e7cff6d969", version = "0.1.0" }
 
+[dev-dependencies]
+tempfile = "3.27"
+
 [profile.release]
 strip = "symbols"
 panic = "abort"

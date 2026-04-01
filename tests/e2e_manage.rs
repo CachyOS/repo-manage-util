@@ -509,3 +509,345 @@ fn move_pkgs_to_repo_routes_debug() {
         "Debug pkg should NOT be in main repo dir"
     );
 }
+
+#[test]
+fn missing_profile_fails() {
+    // Any valid config will do — the profile name is what matters
+    let config = "[profiles.test]\nrepo = \"/dev/null/dummy.db.tar.zst\"\nadd_params = \
+                  []\nrm_params = []\nrequire_signature = false\nbackup = false\n";
+    let (_home, home_path) = setup_test_env(config);
+
+    build_cmd(&home_path).args(["--profile", "nonexistent", "reset"]).assert().failure();
+}
+
+#[test]
+fn missing_config_fails() {
+    let home = TempDir::new().unwrap();
+    build_cmd(home.path()).args(["--profile", "test", "reset"]).assert().failure();
+}
+
+#[test]
+fn cleanup_backup_dir_removes_excess() {
+    let repo_dir = TempDir::new().unwrap();
+    let backup_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let config = TestProfileConfig::new(TEST_PROFILE, db_path.to_str().unwrap())
+        .backup(backup_dir.path().to_str().unwrap())
+        .backup_num(1)
+        .to_toml();
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(backup_dir.path(), "foo", "1.0-1", "x86_64");
+    create_test_pkg(backup_dir.path(), "foo", "2.0-1", "x86_64");
+    create_test_pkg(backup_dir.path(), "foo", "3.0-1", "x86_64");
+
+    build_cmd(&home_path)
+        .args(["--profile", TEST_PROFILE, "cleanup-backup-dir"])
+        .assert()
+        .success();
+
+    let remaining: Vec<_> = fs::read_dir(backup_dir.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().to_str().unwrap().ends_with(".pkg.tar.zst"))
+        .collect();
+    assert_eq!(remaining.len(), 1, "Should keep only 1 version, got: {remaining:?}");
+    assert!(
+        backup_dir.path().join("foo-3.0-1-x86_64.pkg.tar.zst").exists(),
+        "Latest version should be kept"
+    );
+}
+
+#[test]
+fn cleanup_backup_dir_noop_under_limit() {
+    let repo_dir = TempDir::new().unwrap();
+    let backup_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let config = TestProfileConfig::new(TEST_PROFILE, db_path.to_str().unwrap())
+        .backup(backup_dir.path().to_str().unwrap())
+        .backup_num(5)
+        .to_toml();
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(backup_dir.path(), "foo", "1.0-1", "x86_64");
+    create_test_pkg(backup_dir.path(), "foo", "2.0-1", "x86_64");
+
+    build_cmd(&home_path)
+        .args(["--profile", TEST_PROFILE, "cleanup-backup-dir"])
+        .assert()
+        .success();
+
+    assert!(backup_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists());
+    assert!(backup_dir.path().join("foo-2.0-1-x86_64.pkg.tar.zst").exists());
+}
+
+#[test]
+fn cleanup_backup_dir_noop_when_disabled() {
+    let repo_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let config = make_config(db_path.to_str().unwrap(), None);
+    let (_home, home_path) = setup_test_env(&config);
+
+    build_cmd(&home_path)
+        .args(["--profile", TEST_PROFILE, "cleanup-backup-dir"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn is_pkgs_up_to_date_clean_repo() {
+    let repo_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let config = make_config(db_path.to_str().unwrap(), None);
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    build_cmd(&home_path)
+        .args(["--profile", TEST_PROFILE, "is-pkgs-up-to-date"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn is_pkgs_up_to_date_detects_new_package() {
+    let repo_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let config = make_config(db_path.to_str().unwrap(), None);
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    // Add bar file without updating DB — it's "brand new"
+    create_test_pkg(repo_dir.path(), "bar", "1.0-1", "x86_64");
+
+    build_cmd(&home_path)
+        .args(["--profile", TEST_PROFILE, "is-pkgs-up-to-date"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn is_pkgs_up_to_date_detects_debug_in_prod() {
+    let repo_dir = TempDir::new().unwrap();
+    let debug_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let debug_db_path = debug_dir.path().join("test-debug.db.tar.zst");
+    let config = make_config(db_path.to_str().unwrap(), Some(debug_db_path.to_str().unwrap()));
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    // Manually place a debug package back in prod dir (simulating misplacement)
+    create_test_pkg(repo_dir.path(), "foo-debug", "1.0-1", "x86_64");
+
+    build_cmd(&home_path)
+        .args(["--profile", TEST_PROFILE, "is-pkgs-up-to-date"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn move_pkgs_repo_to_repo_transfers() {
+    let src_dir = TempDir::new().unwrap();
+    let dest_dir = TempDir::new().unwrap();
+    let src_db = src_dir.path().join("src.db.tar.zst");
+    let dest_db = dest_dir.path().join("dest.db.tar.zst");
+
+    let config = make_multi_profile_config(&[
+        TestProfileConfig::new("src", src_db.to_str().unwrap()),
+        TestProfileConfig::new("dest", dest_db.to_str().unwrap()),
+    ]);
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(src_dir.path(), "foo", "1.0-1", "x86_64");
+    create_test_pkg(src_dir.path(), "bar", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "src", "reset"]).assert().success();
+
+    build_cmd(&home_path).args(["--from", "src", "--to", "dest", "move-pkgs"]).assert().success();
+
+    assert!(dest_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists());
+    assert!(dest_dir.path().join("bar-1.0-1-x86_64.pkg.tar.zst").exists());
+    assert!(!src_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists());
+    assert!(!src_dir.path().join("bar-1.0-1-x86_64.pkg.tar.zst").exists());
+
+    assert_db_contains(&dest_db, "foo");
+    assert_db_contains(&dest_db, "bar");
+    assert_db_not_contains(&src_db, "foo");
+    assert_db_not_contains(&src_db, "bar");
+}
+
+#[test]
+fn move_pkgs_repo_to_repo_empty_source() {
+    let src_dir = TempDir::new().unwrap();
+    let dest_dir = TempDir::new().unwrap();
+    let src_db = src_dir.path().join("src.db.tar.zst");
+    let dest_db = dest_dir.path().join("dest.db.tar.zst");
+
+    let config = make_multi_profile_config(&[
+        TestProfileConfig::new("src", src_db.to_str().unwrap()),
+        TestProfileConfig::new("dest", dest_db.to_str().unwrap()),
+    ]);
+    let (_home, home_path) = setup_test_env(&config);
+
+    // ALPM needs a valid DB file — reset then remove the package
+    create_test_pkg(src_dir.path(), "dummy", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "src", "reset"]).assert().success();
+    fs::remove_file(src_dir.path().join("dummy-1.0-1-x86_64.pkg.tar.zst")).unwrap();
+
+    build_cmd(&home_path).args(["--from", "src", "--to", "dest", "move-pkgs"]).assert().success();
+}
+
+#[test]
+fn move_pkgs_repo_to_repo_preserves_dest_existing() {
+    let src_dir = TempDir::new().unwrap();
+    let dest_dir = TempDir::new().unwrap();
+    let src_db = src_dir.path().join("src.db.tar.zst");
+    let dest_db = dest_dir.path().join("dest.db.tar.zst");
+
+    let config = make_multi_profile_config(&[
+        TestProfileConfig::new("src", src_db.to_str().unwrap()),
+        TestProfileConfig::new("dest", dest_db.to_str().unwrap()),
+    ]);
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(dest_dir.path(), "baz", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "dest", "reset"]).assert().success();
+
+    create_test_pkg(src_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "src", "reset"]).assert().success();
+
+    build_cmd(&home_path).args(["--from", "src", "--to", "dest", "move-pkgs"]).assert().success();
+
+    assert_db_contains(&dest_db, "baz");
+    assert_db_contains(&dest_db, "foo");
+}
+
+#[test]
+fn sync_copies_newer_packages() {
+    let profile_dir = TempDir::new().unwrap();
+    let ref_dir = TempDir::new().unwrap();
+    let profile_db = profile_dir.path().join("profile.db.tar.zst");
+    let ref_db = ref_dir.path().join("ref.db.tar.zst");
+
+    let ref_config = TestProfileConfig::new("ref", ref_db.to_str().unwrap()).to_toml();
+    let profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+        .reference_repo(ref_db.to_str().unwrap())
+        .to_toml();
+    let config = format!("{ref_config}\n{profile_config}");
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(ref_dir.path(), "foo", "2.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "ref", "reset"]).assert().success();
+
+    create_test_pkg(profile_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "sync"]).assert().success();
+
+    assert!(
+        profile_dir.path().join("foo-2.0-1-x86_64.pkg.tar.zst").exists(),
+        "Newer package from ref repo should be copied to profile dir"
+    );
+}
+
+#[test]
+fn sync_noop_when_up_to_date() {
+    let profile_dir = TempDir::new().unwrap();
+    let ref_dir = TempDir::new().unwrap();
+    let profile_db = profile_dir.path().join("profile.db.tar.zst");
+    let ref_db = ref_dir.path().join("ref.db.tar.zst");
+
+    let ref_config = TestProfileConfig::new("ref", ref_db.to_str().unwrap()).to_toml();
+    let profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+        .reference_repo(ref_db.to_str().unwrap())
+        .to_toml();
+    let config = format!("{ref_config}\n{profile_config}");
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(ref_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "ref", "reset"]).assert().success();
+
+    create_test_pkg(profile_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    let mut files_before: Vec<_> = fs::read_dir(profile_dir.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_str().unwrap().to_string())
+        .collect();
+    files_before.sort();
+
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "sync"]).assert().success();
+
+    let mut files_after: Vec<_> = fs::read_dir(profile_dir.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_str().unwrap().to_string())
+        .collect();
+    files_after.sort();
+
+    assert_eq!(files_before, files_after, "No files should change when up to date");
+}
+
+#[test]
+fn sync_routes_debug_packages() {
+    let profile_dir = TempDir::new().unwrap();
+    let ref_dir = TempDir::new().unwrap();
+    let debug_dir = TempDir::new().unwrap();
+    let profile_db = profile_dir.path().join("profile.db.tar.zst");
+    let ref_db = ref_dir.path().join("ref.db.tar.zst");
+    let debug_db = debug_dir.path().join("profile-debug.db.tar.zst");
+
+    let ref_config = TestProfileConfig::new("ref", ref_db.to_str().unwrap()).to_toml();
+
+    // Set up profile WITHOUT debug_repo first, so foo-debug-1.0 stays in main DB
+    let initial_profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+        .reference_repo(ref_db.to_str().unwrap())
+        .to_toml();
+    let initial_config = format!("{ref_config}\n{initial_profile_config}");
+    let (_home, home_path) = setup_test_env(&initial_config);
+
+    create_test_pkg(ref_dir.path(), "foo", "1.0-1", "x86_64");
+    create_test_pkg(ref_dir.path(), "foo-debug", "2.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "ref", "reset"]).assert().success();
+
+    create_test_pkg(profile_dir.path(), "foo", "1.0-1", "x86_64");
+    create_test_pkg(profile_dir.path(), "foo-debug", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    // Rewrite config with debug_repo enabled for the sync step
+    let final_profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+        .reference_repo(ref_db.to_str().unwrap())
+        .debug_repo(debug_db.to_str().unwrap())
+        .to_toml();
+    let final_config = format!("{ref_config}\n{final_profile_config}");
+    fs::write(home_path.join(".config/repo-manage/config.toml"), final_config).unwrap();
+
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "sync"]).assert().success();
+
+    assert!(
+        debug_dir.path().join("foo-debug-2.0-1-x86_64.pkg.tar.zst").exists(),
+        "Debug pkg should be in debug dir"
+    );
+    assert!(
+        !profile_dir.path().join("foo-debug-2.0-1-x86_64.pkg.tar.zst").exists(),
+        "Debug pkg should NOT be in main profile dir"
+    );
+}
+
+#[test]
+fn sync_skips_without_reference_repo() {
+    let profile_dir = TempDir::new().unwrap();
+    let db_path = profile_dir.path().join("test.db.tar.zst");
+    let config = make_config(db_path.to_str().unwrap(), None);
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(profile_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "sync"]).assert().success();
+}

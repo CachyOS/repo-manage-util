@@ -25,7 +25,6 @@ fn create_test_pkg(dir: &Path, name: &str, version: &str, arch: &str) -> PathBuf
          arch = {arch}\n"
     );
 
-    // tar -> zstd
     let zstd_file = fs::File::create(&dest).unwrap();
     let zstd_enc = zstd::Encoder::new(zstd_file, 1).unwrap();
     let mut tar_builder = tar::Builder::new(zstd_enc);
@@ -63,16 +62,82 @@ fn build_cmd(home: &Path) -> Command {
     cmd
 }
 
+/// Flexible config builder for test profiles.
+struct TestProfileConfig<'a> {
+    name: &'a str,
+    repo: &'a str,
+    debug_repo: Option<&'a str>,
+    backup_dir: Option<&'a str>,
+    backup_num: Option<usize>,
+    reference_repo: Option<&'a str>,
+}
+
+impl<'a> TestProfileConfig<'a> {
+    fn new(name: &'a str, repo: &'a str) -> Self {
+        Self {
+            name,
+            repo,
+            debug_repo: None,
+            backup_dir: None,
+            backup_num: None,
+            reference_repo: None,
+        }
+    }
+
+    fn debug_repo(mut self, path: &'a str) -> Self {
+        self.debug_repo = Some(path);
+        self
+    }
+
+    fn backup(mut self, backup_dir: &'a str) -> Self {
+        self.backup_dir = Some(backup_dir);
+        self
+    }
+
+    fn backup_num(mut self, n: usize) -> Self {
+        self.backup_num = Some(n);
+        self
+    }
+
+    fn reference_repo(mut self, path: &'a str) -> Self {
+        self.reference_repo = Some(path);
+        self
+    }
+
+    fn to_toml(&self) -> String {
+        let backup = self.backup_dir.is_some();
+        let mut s = format!(
+            "[profiles.{}]\nrepo = \"{}\"\nadd_params = []\nrm_params = []\nrequire_signature = \
+             false\nbackup = {}\n",
+            self.name, self.repo, backup
+        );
+        if let Some(d) = self.debug_repo {
+            s.push_str(&format!("debug_repo = \"{d}\"\n"));
+        }
+        if let Some(d) = self.backup_dir {
+            s.push_str(&format!("backup_dir = \"{d}\"\n"));
+        }
+        if let Some(n) = self.backup_num {
+            s.push_str(&format!("backup_num = {n}\n"));
+        }
+        if let Some(r) = self.reference_repo {
+            s.push_str(&format!("reference_repo = \"{r}\"\n"));
+        }
+        s
+    }
+}
+
+fn make_multi_profile_config(profiles: &[TestProfileConfig<'_>]) -> String {
+    profiles.iter().map(|p| p.to_toml()).collect::<Vec<_>>().join("\n")
+}
+
 /// Generate a config TOML string, optionally with a debug repo.
 fn make_config(repo_db_path: &str, debug_db_path: Option<&str>) -> String {
-    let mut config = format!(
-        "[profiles.{TEST_PROFILE}]\nrepo = \"{repo_db_path}\"\nadd_params = []\nrm_params = \
-         []\nrequire_signature = false\nbackup = false\n"
-    );
-    if let Some(debug_path) = debug_db_path {
-        config.push_str(&format!("debug_repo = \"{debug_path}\"\n"));
+    let mut cfg = TestProfileConfig::new(TEST_PROFILE, repo_db_path);
+    if let Some(d) = debug_db_path {
+        cfg = cfg.debug_repo(d);
     }
-    config
+    cfg.to_toml()
 }
 
 /// List package entries from a repo DB file (`.db.tar.zst`).
@@ -89,7 +154,6 @@ fn list_db_entries(db_path: &Path) -> Vec<String> {
     for entry in archive.entries().unwrap() {
         let entry = entry.unwrap();
         let path = entry.path().unwrap();
-        // Top-level dirs look like "pkgname-pkgver/"
         if let Some(first_component) = path.components().next() {
             let name = first_component.as_os_str().to_str().unwrap().to_string();
             entries.insert(name);
@@ -106,11 +170,31 @@ fn db_entry_names(entries: &[String]) -> Vec<String> {
         .iter()
         .map(|e| {
             // Entry format: "pkgname-pkgver" where pkgver is "ver-rel"
-            // Use the same logic as pkg_utils: last 2 dashes delimit ver-rel
+            // last 2 dashes delimit ver-rel
             let pos = e.match_indices('-').nth_back(1).map(|(i, _)| i).unwrap_or(e.len());
             e[..pos].to_string()
         })
         .collect()
+}
+
+/// Assert that a repo DB contains a package with the given name.
+#[track_caller]
+fn assert_db_contains(db_path: &Path, pkg_name: &str) {
+    let names = db_entry_names(&list_db_entries(db_path));
+    assert!(
+        names.contains(&pkg_name.to_string()),
+        "DB should contain '{pkg_name}', got: {names:?}"
+    );
+}
+
+/// Assert that a repo DB does NOT contain a package with the given name.
+#[track_caller]
+fn assert_db_not_contains(db_path: &Path, pkg_name: &str) {
+    let names = db_entry_names(&list_db_entries(db_path));
+    assert!(
+        !names.contains(&pkg_name.to_string()),
+        "DB should NOT contain '{pkg_name}', got: {names:?}"
+    );
 }
 
 #[test]
@@ -126,10 +210,8 @@ fn reset_creates_db_from_packages() {
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
     assert!(db_path.exists(), "DB file should be created");
-    let entries = list_db_entries(&db_path);
-    let names = db_entry_names(&entries);
-    assert!(names.contains(&"foo".to_string()), "DB should contain foo");
-    assert!(names.contains(&"bar".to_string()), "DB should contain bar");
+    assert_db_contains(&db_path, "foo");
+    assert_db_contains(&db_path, "bar");
 }
 
 #[test]
@@ -159,7 +241,6 @@ fn reset_keeps_only_latest_versions() {
     assert_eq!(entries.len(), 1, "DB should have exactly 1 entry (latest version)");
     assert!(entries[0].contains("foo-2.0-1"), "DB should contain foo-2.0-1, got: {}", entries[0]);
 
-    // Outdated package file should be deleted
     assert!(
         !repo_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists(),
         "Outdated package should be removed"
@@ -180,23 +261,41 @@ fn reset_routes_debug_packages() {
 
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Main DB should contain foo only
-    let main_entries = db_entry_names(&list_db_entries(&db_path));
-    assert!(main_entries.contains(&"foo".to_string()));
-    assert!(!main_entries.contains(&"foo-debug".to_string()));
+    assert_db_contains(&db_path, "foo");
+    assert_db_not_contains(&db_path, "foo-debug");
+    assert_db_contains(&debug_db_path, "foo-debug");
 
-    // Debug DB should contain foo-debug
-    let debug_entries = db_entry_names(&list_db_entries(&debug_db_path));
-    assert!(
-        debug_entries.contains(&"foo-debug".to_string()),
-        "Debug DB should contain foo-debug, got: {:?}",
-        debug_entries
-    );
-
-    // Debug package should have been moved out of main repo dir
     assert!(!repo_dir.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
-    // Debug package should exist in debug dir
     assert!(debug_dir.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+}
+
+#[test]
+fn reset_backs_up_outdated_packages() {
+    let repo_dir = TempDir::new().unwrap();
+    let backup_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let config = TestProfileConfig::new(TEST_PROFILE, db_path.to_str().unwrap())
+        .backup(backup_dir.path().to_str().unwrap())
+        .to_toml();
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
+    create_test_pkg(repo_dir.path(), "foo", "2.0-1", "x86_64");
+
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    let entries = list_db_entries(&db_path);
+    assert_eq!(entries.len(), 1);
+    assert!(entries[0].contains("foo-2.0-1"));
+
+    assert!(
+        backup_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists(),
+        "Outdated package should be backed up"
+    );
+    assert!(
+        !repo_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists(),
+        "Outdated package should be removed from repo"
+    );
 }
 
 #[test]
@@ -206,17 +305,14 @@ fn update_adds_new_package() {
     let config = make_config(db_path.to_str().unwrap(), None);
     let (_home, home_path) = setup_test_env(&config);
 
-    // Initial reset with foo
     create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Add bar, then update
     create_test_pkg(repo_dir.path(), "bar", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "update"]).assert().success();
 
-    let names = db_entry_names(&list_db_entries(&db_path));
-    assert!(names.contains(&"foo".to_string()));
-    assert!(names.contains(&"bar".to_string()));
+    assert_db_contains(&db_path, "foo");
+    assert_db_contains(&db_path, "bar");
 }
 
 #[test]
@@ -226,18 +322,15 @@ fn update_removes_stale_package() {
     let config = make_config(db_path.to_str().unwrap(), None);
     let (_home, home_path) = setup_test_env(&config);
 
-    // Initial reset with foo + bar
     create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
     create_test_pkg(repo_dir.path(), "bar", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Remove bar file, then update
     fs::remove_file(repo_dir.path().join("bar-1.0-1-x86_64.pkg.tar.zst")).unwrap();
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "update"]).assert().success();
 
-    let names = db_entry_names(&list_db_entries(&db_path));
-    assert!(names.contains(&"foo".to_string()));
-    assert!(!names.contains(&"bar".to_string()), "bar should be removed as stale");
+    assert_db_contains(&db_path, "foo");
+    assert_db_not_contains(&db_path, "bar");
 }
 
 #[test]
@@ -250,13 +343,11 @@ fn update_noop_when_unchanged() {
     create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Update with no changes
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "update"]).assert().success();
 
     let entries = list_db_entries(&db_path);
     assert_eq!(entries.len(), 1);
-    let names = db_entry_names(&entries);
-    assert!(names.contains(&"foo".to_string()));
+    assert_db_contains(&db_path, "foo");
 }
 
 #[test]
@@ -266,11 +357,9 @@ fn update_handles_newer_version() {
     let config = make_config(db_path.to_str().unwrap(), None);
     let (_home, home_path) = setup_test_env(&config);
 
-    // Initial reset with foo-1.0-1
     create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Add newer version
     create_test_pkg(repo_dir.path(), "foo", "2.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "update"]).assert().success();
 
@@ -278,11 +367,38 @@ fn update_handles_newer_version() {
     assert_eq!(entries.len(), 1, "Should have exactly 1 entry after version update");
     assert!(entries[0].contains("foo-2.0-1"), "Should have the newer version");
 
-    // Old version file should be deleted
     assert!(
         !repo_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists(),
         "Old version should be cleaned up"
     );
+}
+
+#[test]
+fn update_routes_debug_packages() {
+    let repo_dir = TempDir::new().unwrap();
+    let debug_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let debug_db_path = debug_dir.path().join("test-debug.db.tar.zst");
+    let config = make_config(db_path.to_str().unwrap(), Some(debug_db_path.to_str().unwrap()));
+    let (_home, home_path) = setup_test_env(&config);
+
+    create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    create_test_pkg(repo_dir.path(), "foo-debug", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "update"]).assert().success();
+
+    assert!(
+        !repo_dir.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists(),
+        "Debug pkg should be moved out of main repo"
+    );
+    assert!(
+        debug_dir.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists(),
+        "Debug pkg should be in debug dir"
+    );
+    assert_db_contains(&debug_db_path, "foo-debug");
+    assert_db_contains(&db_path, "foo");
+    assert_db_not_contains(&db_path, "foo-debug");
 }
 
 #[test]
@@ -293,34 +409,27 @@ fn move_pkgs_transfers_and_updates() {
     let config = make_config(db_path.to_str().unwrap(), None);
     let (_home, home_path) = setup_test_env(&config);
 
-    // Reset repo with an existing package so the ALPM DB is valid
     create_test_pkg(repo_dir.path(), "existing", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Create new package in CWD
     create_test_pkg(cwd_dir.path(), "foo", "1.0-1", "x86_64");
 
-    // Move packages to repo
     build_cmd(&home_path)
         .args(["--profile", TEST_PROFILE, "move-pkgs-to-repo"])
         .current_dir(cwd_dir.path())
         .assert()
         .success();
 
-    // Package should be moved out of CWD
     assert!(
         !cwd_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists(),
         "Package should be moved out of CWD"
     );
-    // Package should be in repo dir
     assert!(
         repo_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists(),
         "Package should be in repo dir"
     );
-    // DB should contain both existing and foo
-    let names = db_entry_names(&list_db_entries(&db_path));
-    assert!(names.contains(&"foo".to_string()));
-    assert!(names.contains(&"existing".to_string()));
+    assert_db_contains(&db_path, "foo");
+    assert_db_contains(&db_path, "existing");
 }
 
 #[test]
@@ -331,12 +440,10 @@ fn move_pkgs_noop_empty_cwd() {
     let config = make_config(db_path.to_str().unwrap(), None);
     let (_home, home_path) = setup_test_env(&config);
 
-    // Reset repo with a package so the ALPM DB is valid
-    // (move-pkgs-to-repo always calls exclude_existing_pkgs which needs a valid DB)
+    // move-pkgs-to-repo calls exclude_existing_pkgs which needs a valid DB
     create_test_pkg(repo_dir.path(), "existing", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Move with empty CWD
     build_cmd(&home_path)
         .args(["--profile", TEST_PROFILE, "move-pkgs-to-repo"])
         .current_dir(cwd_dir.path())
@@ -352,23 +459,53 @@ fn move_pkgs_excludes_existing() {
     let config = make_config(db_path.to_str().unwrap(), None);
     let (_home, home_path) = setup_test_env(&config);
 
-    // Reset with foo already in repo
     create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Create same package in CWD
     create_test_pkg(cwd_dir.path(), "foo", "1.0-1", "x86_64");
 
-    // Move should exclude the duplicate
     build_cmd(&home_path)
         .args(["--profile", TEST_PROFILE, "move-pkgs-to-repo"])
         .current_dir(cwd_dir.path())
         .assert()
         .success();
 
-    // CWD file should still be there (excluded, not moved)
     assert!(
         cwd_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists(),
         "Duplicate package should remain in CWD (excluded from move)"
+    );
+}
+
+#[test]
+fn move_pkgs_to_repo_routes_debug() {
+    let repo_dir = TempDir::new().unwrap();
+    let debug_dir = TempDir::new().unwrap();
+    let cwd_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("test.db.tar.zst");
+    let debug_db_path = debug_dir.path().join("test-debug.db.tar.zst");
+    let config = make_config(db_path.to_str().unwrap(), Some(debug_db_path.to_str().unwrap()));
+    let (_home, home_path) = setup_test_env(&config);
+
+    // Include a debug package in initial reset so the debug DB gets created
+    create_test_pkg(repo_dir.path(), "existing", "1.0-1", "x86_64");
+    create_test_pkg(repo_dir.path(), "existing-debug", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
+
+    create_test_pkg(cwd_dir.path(), "bar-debug", "1.0-1", "x86_64");
+
+    build_cmd(&home_path)
+        .args(["--profile", TEST_PROFILE, "move-pkgs-to-repo"])
+        .current_dir(cwd_dir.path())
+        .assert()
+        .success();
+
+    assert!(!cwd_dir.path().join("bar-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+    assert!(
+        debug_dir.path().join("bar-debug-1.0-1-x86_64.pkg.tar.zst").exists(),
+        "Debug pkg should end up in debug dir"
+    );
+    assert!(
+        !repo_dir.path().join("bar-debug-1.0-1-x86_64.pkg.tar.zst").exists(),
+        "Debug pkg should NOT be in main repo dir"
     );
 }

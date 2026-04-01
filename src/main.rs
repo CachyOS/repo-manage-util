@@ -134,15 +134,15 @@ async fn do_repo_reset(
 
         // Also wipe debug repo DB so it gets rebuilt from current debug packages
         if let Some(ref debug_repo) = profile.debug_repo
-            && debug_repo != &profile.repo {
-                let debug_dir = Path::new(debug_repo).parent().unwrap();
-                let debug_db_prefix = pkg_utils::get_repo_db_prefix(debug_repo);
-                let debug_db_pattern =
-                    format!("{}/{debug_db_prefix}.*", debug_dir.to_str().unwrap());
-                for entry in glob::glob(&debug_db_pattern)? {
-                    fs::remove_file(entry?)?;
-                }
+            && debug_repo != &profile.repo
+        {
+            let debug_dir = Path::new(debug_repo).parent().unwrap();
+            let debug_db_prefix = pkg_utils::get_repo_db_prefix(debug_repo);
+            let debug_db_pattern = format!("{}/{debug_db_prefix}.*", debug_dir.to_str().unwrap());
+            for entry in glob::glob(&debug_db_pattern)? {
+                fs::remove_file(entry?)?;
             }
+        }
 
         let mut pkgs_list = pkg_utils::find_packages_in_dir(repo_dir)?;
         let outdated_pkgs = pkg_utils::get_outdated_pkgs(&pkgs_list);
@@ -164,19 +164,20 @@ async fn do_repo_reset(
 
         // move debug pkgs from prod to debug dir, then rebuild debug DB from all debug dir contents
         if let Some(ref debug_repo) = profile.debug_repo
-            && debug_repo != &profile.repo {
-                let debug_dir = Path::new(debug_repo).parent().unwrap();
-                if !debug_pkgs.is_empty() {
-                    fs::create_dir_all(debug_dir)?;
-                    handle_pkgfiles_move(&debug_pkgs, debug_dir.to_str().unwrap())?;
-                }
-                if debug_dir.exists() {
-                    let all_debug = pkg_utils::find_packages_in_dir(debug_dir)?;
-                    if !all_debug.is_empty() {
-                        repo_utils::repo_add(debug_repo, &profile.add_params, &all_debug)?;
-                    }
+            && debug_repo != &profile.repo
+        {
+            let debug_dir = Path::new(debug_repo).parent().unwrap();
+            if !debug_pkgs.is_empty() {
+                fs::create_dir_all(debug_dir)?;
+                handle_pkgfiles_move(&debug_pkgs, debug_dir.to_str().unwrap())?;
+            }
+            if debug_dir.exists() {
+                let all_debug = pkg_utils::find_packages_in_dir(debug_dir)?;
+                if !all_debug.is_empty() {
+                    repo_utils::repo_add(debug_repo, &profile.add_params, &all_debug)?;
                 }
             }
+        }
 
         // handle removal/backup here
         handle_outdated_pkgs(profile, &outdated_pkgs)?;
@@ -252,13 +253,14 @@ async fn do_repo_update(
 
     // remove stale packages from debug repo DB
     if let Some(ref debug_repo) = profile.debug_repo
-        && debug_repo != &profile.repo {
-            let stale_debug = alpm_helper::get_stale_packages(debug_repo)
-                .context("Failed to get stale debug pkgs")?;
-            if !stale_debug.is_empty() {
-                repo_utils::repo_remove(debug_repo, &profile.rm_params, &stale_debug)?;
-            }
+        && debug_repo != &profile.repo
+    {
+        let stale_debug = alpm_helper::get_stale_packages(debug_repo)
+            .context("Failed to get stale debug pkgs")?;
+        if !stale_debug.is_empty() {
+            repo_utils::repo_remove(debug_repo, &profile.rm_params, &stale_debug)?;
         }
+    }
 
     // report status only when had some work
     if !new_pkgs.is_empty() || !stale_pkgs.is_empty() {
@@ -454,13 +456,14 @@ async fn do_repo_checkup(profile: &config::Profile, repo_dir: &Path) -> Result<(
 
     // 4. report debug packages that are still in the prod repo
     if let Some(ref debug_repo) = profile.debug_repo
-        && debug_repo != &profile.repo {
-            let debug_pkgs = pkg_utils::get_debug_packages(&pkgs_list);
-            for debug_pkg in &debug_pkgs {
-                let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(debug_pkg);
-                tracing::info!("Found debug package in repo '{repo_db_prefix}': '{pkg_pair}'");
-            }
+        && debug_repo != &profile.repo
+    {
+        let debug_pkgs = pkg_utils::get_debug_packages(&pkgs_list);
+        for debug_pkg in &debug_pkgs {
+            let pkg_pair = pkg_utils::get_pkg_db_pair_from_path(debug_pkg);
+            tracing::info!("Found debug package in repo '{repo_db_prefix}': '{pkg_pair}'");
         }
+    }
 
     tracing::info!("Repo checkup is done!");
 
@@ -689,24 +692,25 @@ fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> 
 
     // 3. clean up outdated debug package files in the debug repo dir
     if let Some(ref debug_repo) = profile.debug_repo
-        && debug_repo != &profile.repo {
-            let debug_dir = Path::new(debug_repo).parent().unwrap();
-            if debug_dir.exists() {
-                let debug_pkgs = pkg_utils::find_packages_in_dir(debug_dir)?;
-                let outdated_debug = pkg_utils::get_outdated_pkgs(&debug_pkgs);
-                for pkg in &outdated_debug {
-                    let entry = pkg_utils::get_pkg_db_pair_from_path(pkg);
-                    tracing::info!("rm outdated debug pkg '{entry}'..");
-                    if let Err(e) = fs::remove_file(pkg) {
-                        tracing::error!("Failed to remove outdated debug package '{pkg}': {e}");
-                    }
-                    let sig = format!("{pkg}.sig");
-                    if Path::new(&sig).exists() {
-                        let _ = fs::remove_file(&sig);
-                    }
+        && debug_repo != &profile.repo
+    {
+        let debug_dir = Path::new(debug_repo).parent().unwrap();
+        if debug_dir.exists() {
+            let debug_pkgs = pkg_utils::find_packages_in_dir(debug_dir)?;
+            let outdated_debug = pkg_utils::get_outdated_pkgs(&debug_pkgs);
+            for pkg in &outdated_debug {
+                let entry = pkg_utils::get_pkg_db_pair_from_path(pkg);
+                tracing::info!("rm outdated debug pkg '{entry}'..");
+                if let Err(e) = fs::remove_file(pkg) {
+                    tracing::error!("Failed to remove outdated debug package '{pkg}': {e}");
+                }
+                let sig = format!("{pkg}.sig");
+                if Path::new(&sig).exists() {
+                    let _ = fs::remove_file(&sig);
                 }
             }
         }
+    }
 
     Ok(())
 }

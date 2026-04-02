@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::path::PathBuf;
 
 use pg_impl::db::Db;
+use repo_manage_util::pkg_utils::get_repo_db_prefix;
 use tempfile::TempDir;
 
 use common::*;
@@ -17,8 +18,7 @@ macro_rules! require_pg {
         match get_database_url() {
             Some(url) => url,
             None => {
-                eprintln!("skipping: DATABASE_URL not set");
-                return;
+                panic!("DATABASE_URL not set");
             },
         }
     };
@@ -80,7 +80,7 @@ impl PgTestCtx {
     async fn new(pg_url: &str, profile_name: &str, db_suffix: &str) -> Self {
         let repo_dir = TempDir::new().unwrap();
         let db_path = repo_dir.path().join(format!("{db_suffix}.db.tar.zst"));
-        let repo_name = repo_db_prefix(db_path.to_str().unwrap());
+        let repo_name = get_repo_db_prefix(db_path.to_str().unwrap());
 
         let db = Db::connect(pg_url).await.unwrap();
         db.migrate().await.unwrap();
@@ -311,8 +311,8 @@ async fn move_pkgs_repo_to_repo_updates_pg() {
     let dest_dir = TempDir::new().unwrap();
     let src_db_path = src_dir.path().join("pg-mv-src.db.tar.zst");
     let dest_db_path = dest_dir.path().join("pg-mv-dest.db.tar.zst");
-    let src_repo = repo_db_prefix(src_db_path.to_str().unwrap());
-    let dest_repo = repo_db_prefix(dest_db_path.to_str().unwrap());
+    let src_repo = get_repo_db_prefix(src_db_path.to_str().unwrap());
+    let dest_repo = get_repo_db_prefix(dest_db_path.to_str().unwrap());
 
     let db = Db::connect(&pg_url).await.unwrap();
     db.migrate().await.unwrap();

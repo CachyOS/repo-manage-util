@@ -3,6 +3,7 @@ use std::{env, fs, slice, str};
 use rand::Rng;
 
 #[inline]
+#[must_use]
 pub const fn const_min(v1: usize, v2: usize) -> usize {
     if v1 <= v2 { v1 } else { v2 }
 }
@@ -20,6 +21,7 @@ pub const fn string_substr(src_str: &str, pos: usize, n: usize) -> Result<&str, 
     }
 }
 
+#[must_use]
 pub fn create_temporary_directory(max_tries: Option<u32>) -> Option<String> {
     let tmp_dir = env::temp_dir();
     let max_tries = max_tries.unwrap_or(1000);

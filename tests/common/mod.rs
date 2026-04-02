@@ -192,17 +192,3 @@ pub fn assert_db_not_contains(db_path: &Path, pkg_name: &str) {
     );
 }
 
-/// Extract the repo name from a `.db.tar.zst` path (mirrors `pkg_utils::get_repo_db_prefix`).
-#[allow(dead_code)]
-pub fn repo_db_prefix(db_path: &str) -> String {
-    let stem = Path::new(db_path)
-        .file_stem()
-        .unwrap()
-        .to_str()
-        .unwrap();
-    if let Some(pos) = stem.find(".db") {
-        stem[..pos].to_string()
-    } else {
-        stem.to_string()
-    }
-}

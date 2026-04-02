@@ -5,7 +5,7 @@ use clap::Parser;
 #[derive(Parser, PartialEq, Debug)]
 #[command(author, version, about, long_about = None)]
 #[clap(subcommand_negates_reqs = true)]
-pub(crate) struct Cli {
+pub struct Cli {
     /// Profile to use from the configuration file
     #[arg(global = true, short, long)]
     profile: Option<String>,
@@ -26,7 +26,7 @@ pub(crate) struct Cli {
 }
 
 #[derive(Parser, PartialEq, Debug)]
-pub(crate) struct SingleProfileCli {
+pub struct SingleProfileCli {
     /// Profile to use from the configuration file
     #[clap(from_global)]
     pub profile: String,
@@ -37,7 +37,7 @@ pub(crate) struct SingleProfileCli {
 }
 
 #[derive(Parser, PartialEq, Debug)]
-pub(crate) struct FromToProfileCli {
+pub struct FromToProfileCli {
     /// Profile to use from the configuration file (for move-pkgs) FROM repo
     #[clap(from_global)]
     pub from: String,
@@ -47,7 +47,7 @@ pub(crate) struct FromToProfileCli {
 }
 
 #[derive(Parser, PartialEq, Debug)]
-pub(crate) struct ProfileAurCli {
+pub struct ProfileAurCli {
     /// Profile to use from the configuration file
     #[clap(from_global)]
     pub profile: String,
@@ -62,7 +62,7 @@ pub(crate) struct ProfileAurCli {
 }
 
 #[derive(Parser, PartialEq, Debug)]
-pub(crate) enum Commands {
+pub enum Commands {
     /// Reset the repository
     Reset(SingleProfileCli),
     /// Update the repository

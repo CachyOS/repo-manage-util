@@ -1,13 +1,4 @@
-mod alpm_helper;
-mod args;
-mod aur;
-mod config;
-mod logger;
-mod pg_types;
-mod pkg_utils;
-mod postgresql_helper;
-mod repo_utils;
-mod utils;
+use repo_manage_util::{alpm_helper, args, aur, config, logger, pkg_utils, postgresql_helper, repo_utils};
 
 use std::path::{Path, PathBuf};
 use std::{env, fs};

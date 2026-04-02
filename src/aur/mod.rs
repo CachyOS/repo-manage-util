@@ -13,6 +13,10 @@ use tar::Archive;
 // Our hardcoded client header
 const USER_AGENT: &str = "repo-manage-util/1.0.0";
 
+fn build_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder().user_agent(USER_AGENT).build().context("Failed to build HTTP client")
+}
+
 #[derive(Deserialize, Clone)]
 pub struct Package {
     // AUR RPC search ReturnData
@@ -136,10 +140,7 @@ fn pull_git_source<PathLike: AsRef<Path>>(pkgbase: &str, dest_path: PathLike) ->
 
 pub async fn fetch_snapshot() -> Result<Vec<Package>> {
     let url = "https://aur.archlinux.org/packages-meta-ext-v1.json.gz";
-    let client = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .build()
-        .context("Failed to build client")?;
+    let client = build_client()?;
     let response = client.get(url).send().await?.error_for_status()?;
 
     let content = response.bytes().await?;
@@ -148,10 +149,7 @@ pub async fn fetch_snapshot() -> Result<Vec<Package>> {
 
 pub async fn fetch_packages() -> Result<Vec<String>> {
     let url = "https://aur.archlinux.org/packages.gz";
-    let client = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .build()
-        .context("Failed to build client")?;
+    let client = build_client()?;
     let response = client.get(url).send().await?.error_for_status()?;
 
     let content = response.bytes().await?;

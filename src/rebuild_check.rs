@@ -66,7 +66,10 @@ fn get_arch_repo_sofiles(pacman_conf: Option<&Path>) -> Result<HashSet<String>> 
                     if filename.windows(SO_DOT.len()).any(|w| w == SO_DOT)
                         || filename.ends_with(b".so")
                     {
-                        let s = std::str::from_utf8(filename).map_or_else(|_| String::from_utf8_lossy(filename).into_owned(), std::string::ToString::to_string);
+                        let s = std::str::from_utf8(filename).map_or_else(
+                            |_| String::from_utf8_lossy(filename).into_owned(),
+                            std::string::ToString::to_string,
+                        );
                         sofiles.insert(s);
                     }
                 }

@@ -14,6 +14,7 @@ pub fn init_logger() {
         .with_target(false)
         .without_time()
         .compact()
+        .with_ansi_sanitization(false)
         .with_writer(std::io::stdout);
 
     tracing_subscriber::registry().with(stdout_log).with(subscriber_env_filter).init();

@@ -7,23 +7,21 @@ description = "A command-line utility for managing Arch Linux repositories"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-alpm = { version = "5", features = ["git"], default-features = false }
-alpm-utils = { version = "5", features = ["git", "alpm", "conf"], default-features = false }
+alpm = { version = "5", default-features = false }
+alpm-utils = { version = "5", features = ["alpm", "conf"], default-features = false }
 pacmanconf = "3.1"
 anyhow = { version = "1", default-features = false, features = ["std"] }
 chrono = { version = "0.4", default-features = false }
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 glob = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
-rand = { version = "0.9", features = ["std", "std_rng", "thread_rng"], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["std"] }
-subprocess = "0.2"
-tokio = { version = "1.48", features = ["macros", "rt-multi-thread"], default-features = false }
-toml = "0.9"
-uuid = { version = "1.19", features = ["v4"], default-features = false }
+tokio = { version = "1.50", features = ["macros", "rt-multi-thread"], default-features = false }
+toml = "1.1"
+uuid = { version = "1.23", features = ["v4"], default-features = false }
 pg_impl = { path = "./pg_impl" }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "runtime-tokio", "migrate", "chrono", "uuid", "macros"], default-features = false }
 flate2 = "1.1"

@@ -1,5 +1,5 @@
 use crate::postgresql_helper::PostgresqlHelper;
-use crate::{pg_types, pkg_utils, utils};
+use crate::{pg_types, pkg_utils};
 
 use std::path::Path;
 use std::{env, fs};
@@ -40,7 +40,8 @@ fn init_alpm(pacman_path: &str, repo_list: &[RepoData], is_files_repo: bool) -> 
 }
 
 fn init_profile_repo_ext(repo_filepath: &str, is_files_repo: bool) -> Result<Alpm> {
-    let temp_dir = utils::create_temporary_directory(None).expect("Failed to create temp dir");
+    let temp_dir = tempfile::tempdir().context("Failed to create temp dir")?;
+    let temp_dir_path = temp_dir.keep();
 
     let repo_dir =
         Path::new(repo_filepath).parent().expect("Failed to get parent dir from repo filepath");
@@ -49,7 +50,7 @@ fn init_profile_repo_ext(repo_filepath: &str, is_files_repo: bool) -> Result<Alp
     let repo_db_prefix = pkg_utils::get_repo_db_prefix(repo_filepath);
 
     let repo_list = vec![RepoData { repo_name: repo_db_prefix, repo_server: repo_url }];
-    init_alpm(&temp_dir, &repo_list, is_files_repo)
+    init_alpm(temp_dir_path.to_str().unwrap(), &repo_list, is_files_repo)
 }
 
 fn init_profile_repo(repo_filepath: &str) -> Result<Alpm> {

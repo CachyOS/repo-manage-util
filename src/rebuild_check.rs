@@ -7,6 +7,7 @@ use std::path::Path;
 
 use alpm::Alpm;
 use anyhow::{Context, Result};
+use rayon::prelude::*;
 
 #[derive(Debug)]
 pub struct BrokenPackage {
@@ -177,18 +178,22 @@ fn check_broken_packages_with(
     let total = pkg_paths.len();
     tracing::info!("Analyzing {total} packages in {}", repo_dir.display());
 
-    let mut analyses = Vec::with_capacity(total);
-    for (i, pkg_path_str) in pkg_paths.iter().enumerate() {
-        let pkg_path = Path::new(pkg_path_str);
-        tracing::debug!("[{}/{}] Analyzing {pkg_path_str}", i + 1, total);
+    let analyses: Vec<PackageAnalysis> = pkg_paths
+        .par_iter()
+        .enumerate()
+        .filter_map(|(i, pkg_path_str)| {
+            let pkg_path = Path::new(pkg_path_str);
+            tracing::debug!("[{}/{}] Analyzing {pkg_path_str}", i + 1, total);
 
-        match analyze_package(pkg_path) {
-            Ok(analysis) => analyses.push(analysis),
-            Err(e) => {
-                tracing::error!("Failed to analyze {pkg_path_str}: {e}");
-            },
-        }
-    }
+            match analyze_package(pkg_path) {
+                Ok(analysis) => Some(analysis),
+                Err(e) => {
+                    tracing::error!("Failed to analyze {pkg_path_str}: {e}");
+                    None
+                },
+            }
+        })
+        .collect();
 
     // Build combined available repo libs + all profile repo provides
     let mut available = external_sofiles;

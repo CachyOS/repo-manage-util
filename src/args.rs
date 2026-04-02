@@ -62,6 +62,17 @@ pub struct ProfileAurCli {
 }
 
 #[derive(Parser, PartialEq, Debug)]
+pub struct CheckRebuildCli {
+    /// Profile to use from the configuration file
+    #[clap(from_global)]
+    pub profile: String,
+
+    /// Path to pacman.conf for resolving .so dependencies (defaults to /etc/pacman.conf)
+    #[arg(long, value_name = "PATH")]
+    pub pacman_conf: Option<PathBuf>,
+}
+
+#[derive(Parser, PartialEq, Debug)]
 pub enum Commands {
     /// Reset the repository
     Reset(SingleProfileCli),
@@ -82,6 +93,8 @@ pub enum Commands {
     // IsDebugPkgsOk, // ok maybe not implemented
     /// Pulls outdated packages from AUR with generated build order
     Aur(ProfileAurCli),
+    /// Check packages for broken .so dependencies (packages needing rebuild)
+    CheckRebuild(CheckRebuildCli),
 }
 
 #[cfg(test)]

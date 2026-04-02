@@ -1,4 +1,7 @@
-use repo_manage_util::{alpm_helper, args, aur, config, logger, pkg_utils, postgresql_helper, repo_utils};
+use repo_manage_util::{
+    alpm_helper, args, aur, config, logger, pkg_utils, postgresql_helper, repo_utils,
+};
+mod rebuild_check;
 
 use std::path::{Path, PathBuf};
 use std::{env, fs};
@@ -101,6 +104,12 @@ async fn main() -> Result<()> {
             let repo_dir = get_repo_dir_from_profile(profile);
 
             do_repo_aur(repo_dir, args.order_file.clone(), args.dry_run).await?;
+        },
+        Commands::CheckRebuild(args) => {
+            let profile = get_profile_from_config(&args.profile, &config)?;
+            let repo_dir = get_repo_dir_from_profile(profile);
+
+            do_check_rebuild(repo_dir, args.pacman_conf.as_deref())?;
         },
     }
 
@@ -643,6 +652,22 @@ async fn move_packages_from_repo_to_repo(
     tracing::info!("Repo MovePkgsFromRepo2Repo is done!");
 
     Ok(())
+}
+
+fn do_check_rebuild(repo_dir: &Path, pacman_conf: Option<&Path>) -> Result<()> {
+    let broken = rebuild_check::check_broken_packages(repo_dir, pacman_conf)?;
+    if broken.is_empty() {
+        tracing::info!("All packages in {} have satisfied .so dependencies.", repo_dir.display());
+        return Ok(());
+    }
+
+    tracing::warn!("Broken packages (need rebuild):");
+    for pkg in &broken {
+        let libs = pkg.missing_libs.join(", ");
+        tracing::warn!("  {} {}: {libs}", pkg.name, pkg.version);
+    }
+    tracing::error!("Found {} broken package(s).", broken.len());
+    anyhow::bail!("{} broken package(s) found", broken.len());
 }
 
 fn handle_outdated_pkgs(profile: &config::Profile, outdated_pkgs: &[String]) -> Result<()> {

@@ -184,7 +184,7 @@ pub fn get_repo_db_prefix(repo_db_filename: &str) -> String {
     let repo_db_prefix =
         Path::new(repo_db_filename).file_stem().unwrap().to_str().unwrap().to_owned();
     if let Some(strpos) = repo_db_prefix.find(".db") {
-        return utils::string_substr(&repo_db_prefix, 0, strpos).unwrap().into();
+        return utils::string_substr(&repo_db_prefix, 0, strpos).into();
     }
 
     repo_db_prefix
@@ -643,37 +643,35 @@ mod tests {
 
     #[test]
     fn test_validate_packages_all_signatures_present() {
-        let temp_dir = utils::create_temporary_directory(None).expect("Failed to create temp dir");
+        let temp_dir = tempfile::tempdir().unwrap();
+        let td = temp_dir.path().to_str().unwrap();
 
         let pkgs_list: Vec<String> = vec![
-            format!("{temp_dir}/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst"),
-            format!("{temp_dir}/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst"),
-            format!("{temp_dir}/st-0.8.4-2-x86_64.pkg.tar.zst"),
+            format!("{td}/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst"),
+            format!("{td}/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst"),
+            format!("{td}/st-0.8.4-2-x86_64.pkg.tar.zst"),
         ];
         for pkg in &pkgs_list {
             fs::File::create(pkg).unwrap();
             fs::File::create(format!("{pkg}.sig")).unwrap();
         }
         assert!(validate_packages(true, &pkgs_list));
-
-        fs::remove_dir_all(temp_dir).unwrap();
     }
 
     #[test]
     fn test_validate_packages_missing_signature() {
-        let temp_dir = utils::create_temporary_directory(None).expect("Failed to create temp dir");
+        let temp_dir = tempfile::tempdir().unwrap();
+        let td = temp_dir.path().to_str().unwrap();
 
         let pkgs_list: Vec<String> = vec![
-            format!("{temp_dir}/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst"),
-            format!("{temp_dir}/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst"),
-            format!("{temp_dir}/st-0.8.4-2-x86_64.pkg.tar.zst"),
+            format!("{td}/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst"),
+            format!("{td}/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst"),
+            format!("{td}/st-0.8.4-2-x86_64.pkg.tar.zst"),
         ];
         for pkg in &pkgs_list {
             fs::File::create(pkg).unwrap();
         }
         assert!(!validate_packages(true, &pkgs_list));
-
-        fs::remove_dir_all(temp_dir).unwrap();
     }
 
     #[test]
@@ -685,32 +683,29 @@ mod tests {
 
     #[test]
     fn test_validate_packages_mixed_signature_status() {
-        let temp_dir = utils::create_temporary_directory(None).expect("Failed to create temp dir");
+        let temp_dir = tempfile::tempdir().unwrap();
+        let td = temp_dir.path().to_str().unwrap();
 
         let pkgs_list: Vec<String> = vec![
-            format!("{temp_dir}/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst"),
-            format!("{temp_dir}/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst"),
-            format!("{temp_dir}/st-0.8.4-2-x86_64.pkg.tar.zst"),
+            format!("{td}/lightdm-webkit2-theme-arch-1:0.1-1-any.pkg.tar.zst"),
+            format!("{td}/plymouth-theme-hud-3-git-r38.bf2f570-1-any.pkg.tar.zst"),
+            format!("{td}/st-0.8.4-2-x86_64.pkg.tar.zst"),
         ];
         for pkg in &pkgs_list {
             fs::File::create(pkg).unwrap();
         }
         fs::File::create(format!("{}.sig", &pkgs_list[0])).unwrap();
         assert!(!validate_packages(true, &pkgs_list));
-
-        fs::remove_dir_all(temp_dir).unwrap();
     }
 
     #[test]
     fn test_find_packages_in_dir_no_matching_packages() {
-        let temp_dir = utils::create_temporary_directory(None).expect("Failed to create temp dir");
-        let other_file = Path::new(&temp_dir).join("other.txt");
+        let temp_dir = tempfile::tempdir().unwrap();
+        let other_file = temp_dir.path().join("other.txt");
         fs::File::create(other_file).unwrap();
 
-        let result = find_packages_in_dir(Path::new(&temp_dir)).unwrap();
+        let result = find_packages_in_dir(temp_dir.path()).unwrap();
         assert_eq!(result.len(), 0);
-
-        fs::remove_dir_all(temp_dir).unwrap();
     }
 
     #[test]

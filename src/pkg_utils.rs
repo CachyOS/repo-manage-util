@@ -5,26 +5,31 @@ use std::path::Path;
 
 pub type PackageMap = HashMap<String, Vec<(String, alpm::Version)>>;
 
+fn is_debug_package(pkg_filepath: &str) -> bool {
+    let pkg_filename = Path::new(pkg_filepath).file_name().unwrap().to_str().unwrap();
+    let pkg_name = crate::pkg_utils::get_pkgname_from_filename(pkg_filename);
+    pkg_name.ends_with("-debug")
+}
+
 #[must_use]
 pub fn get_debug_packages(pkg_list: &[String]) -> Vec<String> {
-    // Identify debug packages from pkg list
-    let mut debug_pkgs: Vec<String> = vec![];
-    for pkg_filepath in pkg_list {
-        let pkg_filename = Path::new(pkg_filepath).file_name().unwrap().to_str().unwrap();
-        let pkg_name = crate::pkg_utils::get_pkgname_from_filename(pkg_filename);
-        if pkg_name.ends_with("-debug") {
-            debug_pkgs.push(pkg_filepath.clone());
-        }
-    }
+    let mut debug_pkgs: Vec<String> =
+        pkg_list.iter().filter(|p| is_debug_package(p)).cloned().collect();
     debug_pkgs.sort();
-
     debug_pkgs
 }
 
 pub fn exclude_debug_pkgs(pkg_list: &mut Vec<String>) -> Vec<String> {
-    let debug_pkgs = get_debug_packages(pkg_list);
-    pkg_list.retain(|pkg| !debug_pkgs.contains(pkg));
-
+    let mut debug_pkgs = Vec::new();
+    pkg_list.retain(|pkg| {
+        if is_debug_package(pkg) {
+            debug_pkgs.push(pkg.clone());
+            false
+        } else {
+            true
+        }
+    });
+    debug_pkgs.sort();
     debug_pkgs
 }
 

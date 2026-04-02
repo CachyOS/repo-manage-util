@@ -1,5 +1,4 @@
 /// Shared test helpers for integration tests.
-
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -191,4 +190,3 @@ pub fn assert_db_not_contains(db_path: &Path, pkg_name: &str) {
         "DB should NOT contain '{pkg_name}', got: {names:?}"
     );
 }
-

@@ -5,6 +5,7 @@ use std::path::Path;
 
 pub type PackageMap = HashMap<String, Vec<(String, alpm::Version)>>;
 
+#[must_use]
 pub fn get_debug_packages(pkg_list: &[String]) -> Vec<String> {
     // Identify debug packages from pkg list
     let mut debug_pkgs: Vec<String> = vec![];
@@ -27,6 +28,7 @@ pub fn exclude_debug_pkgs(pkg_list: &mut Vec<String>) -> Vec<String> {
     debug_pkgs
 }
 
+#[must_use]
 pub fn get_outdated_pkgs(pkg_list: &[String]) -> Vec<String> {
     let mut pkg_map = get_pkgs_map(pkg_list);
 
@@ -81,6 +83,7 @@ pub fn remove_outdated_pkgs(pkg_list: &mut Vec<String>) {
 // 2. copy those package files over to the repo directory
 // 3. update the repo with newer packages
 // 4. handle old packages which were present in the repository at the time, which we dumped before
+#[must_use]
 pub fn get_new_pkgs(pkg_list: &[String]) -> Vec<String> {
     let mut pkg_map = get_pkgs_map(pkg_list);
 
@@ -101,6 +104,7 @@ pub fn get_new_pkgs(pkg_list: &[String]) -> Vec<String> {
 
 // Get list of packages with more than N versions
 // NOTE: if the package has less than N versions, it will be ignored
+#[must_use]
 pub fn get_stale_pkg_versions(pkg_list: &[String], n_versions: usize) -> PackageMap {
     let mut pkg_map = get_pkgs_map(pkg_list);
 
@@ -149,11 +153,13 @@ fn get_pkgs_map(pkg_list: &[String]) -> PackageMap {
 // &filename[first_pos..last_pos]
 // }
 
+#[must_use]
 pub fn get_pkgname_from_filename(filename: &str) -> &str {
     let last_pos = filename.match_indices('-').nth_back(2).unwrap().0;
     &filename[..last_pos]
 }
 
+#[must_use]
 pub fn get_pkgver_from_filename(filename: &str) -> &str {
     let mut rng = filename.match_indices('-');
     let last_pos = rng.nth_back(0).unwrap().0;
@@ -162,6 +168,7 @@ pub fn get_pkgver_from_filename(filename: &str) -> &str {
     &filename[first_pos..last_pos]
 }
 
+#[must_use]
 pub fn get_pkg_db_pair_from_path(file_path: &str) -> String {
     // NOTE: we can do here same as for pkgname and pkgver,
     // and just return &str which points to part of file_path
@@ -172,6 +179,7 @@ pub fn get_pkg_db_pair_from_path(file_path: &str) -> String {
     format!("{pkg_name}-{pkg_ver}")
 }
 
+#[must_use]
 pub fn get_repo_db_prefix(repo_db_filename: &str) -> String {
     let repo_db_prefix =
         Path::new(repo_db_filename).file_stem().unwrap().to_str().unwrap().to_owned();
@@ -193,6 +201,7 @@ pub fn remove_pkgs_without_sig(pkgs_list: &mut Vec<String>) {
     });
 }
 
+#[must_use]
 pub fn replace_base_dir_for_pkgs(pkgs_list: &[String], base_dir: &Path) -> Vec<String> {
     pkgs_list
         .iter()
@@ -202,6 +211,7 @@ pub fn replace_base_dir_for_pkgs(pkgs_list: &[String], base_dir: &Path) -> Vec<S
         .collect::<Vec<_>>()
 }
 
+#[must_use]
 pub fn exclude_existing_pkgs(repo_db_path: &str, pkg_list: &[String]) -> Vec<String> {
     let mut pkg_map = get_pkgs_map(pkg_list);
     alpm_helper::exclude_existing_pkgs(repo_db_path, &mut pkg_map)

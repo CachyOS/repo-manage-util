@@ -104,12 +104,7 @@ impl PostgresqlHelper {
             .await
             .context("Failed to get repository packages")?;
 
-        let mut packages = Vec::new();
-        for row in rows {
-            packages.push(row.into());
-        }
-
-        Ok(packages)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Retrieves statistics for a specific repository.
@@ -120,12 +115,7 @@ impl PostgresqlHelper {
             .await
             .context("Failed to get repository statistics")?;
 
-        let mut stats = Vec::new();
-        for row in rows {
-            stats.push(row.into());
-        }
-
-        Ok(stats)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Searches for packages in a repository by name or description.
@@ -140,12 +130,7 @@ impl PostgresqlHelper {
             .await
             .context("Failed to search packages")?;
 
-        let mut packages = Vec::new();
-        for row in rows {
-            packages.push(row.into());
-        }
-
-        Ok(packages)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Get packages by architecture
@@ -160,12 +145,7 @@ impl PostgresqlHelper {
             .await
             .context("Failed to get packages by architecture")?;
 
-        let mut packages = Vec::new();
-        for row in rows {
-            packages.push(row.into());
-        }
-
-        Ok(packages)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Inserts or updates a repository.
@@ -197,12 +177,7 @@ impl PostgresqlHelper {
         let rows =
             self.db.get_all_repositories().await.context("Failed to get all repositories")?;
 
-        let mut repositories = Vec::new();
-        for row in rows {
-            repositories.push(row.into());
-        }
-
-        Ok(repositories)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Begins a new database transaction.

@@ -139,7 +139,7 @@ where
             let pkg_filepath = format!("{}/{pkg_filename}", repo_dir.to_str().unwrap());
             !Path::new(&pkg_filepath).exists()
         })
-        .map(|x| project(x))
+        .map(project)
         .collect();
 
     Ok(stale_pkgs)

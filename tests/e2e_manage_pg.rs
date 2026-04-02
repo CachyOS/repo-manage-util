@@ -42,10 +42,7 @@ impl Drop for PgRepoGuard {
         let url = self.url.clone();
         let repo_names = self.repo_names.clone();
         let _ = std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
             rt.block_on(async {
                 let db = match Db::connect(&url).await {
                     Ok(db) => db,
@@ -90,15 +87,7 @@ impl PgTestCtx {
         let config = make_pg_config(pg_url, profile_name, db_path.to_str().unwrap());
         let (home, home_path) = setup_test_env(&config);
 
-        Self {
-            home,
-            home_path,
-            repo_dir,
-            db_path,
-            repo_name,
-            db,
-            guard,
-        }
+        Self { home, home_path, repo_dir, db_path, repo_name, db, guard }
     }
 
     /// Build a CLI command for this test context.
@@ -109,6 +98,7 @@ impl PgTestCtx {
 
 impl Deref for PgTestCtx {
     type Target = Db;
+
     fn deref(&self) -> &Self::Target {
         &self.db
     }
@@ -130,12 +120,7 @@ fn make_multi_pg_config(pg_url: &str, profiles: &[TestProfileConfig<'_>]) -> Str
 }
 
 async fn pg_package_names(db: &Db, repo_name: &str) -> Vec<String> {
-    db.get_repo_packages(repo_name)
-        .await
-        .unwrap()
-        .into_iter()
-        .filter_map(|p| p.pkg_name)
-        .collect()
+    db.get_repo_packages(repo_name).await.unwrap().into_iter().filter_map(|p| p.pkg_name).collect()
 }
 
 async fn assert_pg_has(db: &Db, repo_name: &str, pkg_name: &str) {
@@ -172,10 +157,7 @@ async fn reset_populates_pg() {
     create_test_pkg(&ctx.repo_dir.path(), "foo", "1.0-1", "x86_64");
     create_test_pkg(&ctx.repo_dir.path(), "bar", "2.0-1", "x86_64");
 
-    ctx.cmd()
-        .args(["--profile", "test", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "reset"]).assert().success();
 
     assert!(ctx.db_path.exists());
     assert_pg_has(&ctx.db, &ctx.repo_name, "foo").await;
@@ -192,18 +174,12 @@ async fn reset_only_pg_skips_files() {
     create_test_pkg(&ctx.repo_dir.path(), "foo", "1.0-1", "x86_64");
 
     // Normal reset — creates .db.tar.zst and populates PG.
-    ctx.cmd()
-        .args(["--profile", "test", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "reset"]).assert().success();
 
     assert!(ctx.db_path.exists());
 
     // --only-pg reset: file operations skipped, .db.tar.zst preserved.
-    ctx.cmd()
-        .args(["--profile", "test", "--only-pg", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "--only-pg", "reset"]).assert().success();
 
     assert!(ctx.db_path.exists(), "DB file should survive --only-pg reset");
     assert_pg_has(&ctx.db, &ctx.repo_name, "foo").await;
@@ -215,18 +191,12 @@ async fn reset_only_pg_idempotent() {
     let ctx = PgTestCtx::new(&pg_url, "test", "pg-idem-test").await;
 
     create_test_pkg(&ctx.repo_dir.path(), "foo", "1.0-1", "x86_64");
-    ctx.cmd()
-        .args(["--profile", "test", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "reset"]).assert().success();
 
     assert_pg_has(&ctx.db, &ctx.repo_name, "foo").await;
 
     // Re-run --only-pg: no new packages, PG still has foo.
-    ctx.cmd()
-        .args(["--profile", "test", "--only-pg", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "--only-pg", "reset"]).assert().success();
 
     assert_pg_has(&ctx.db, &ctx.repo_name, "foo").await;
 }
@@ -238,19 +208,13 @@ async fn update_adds_and_removes_pg_entries() {
 
     create_test_pkg(&ctx.repo_dir.path(), "foo", "1.0-1", "x86_64");
     create_test_pkg(&ctx.repo_dir.path(), "bar", "1.0-1", "x86_64");
-    ctx.cmd()
-        .args(["--profile", "test", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "reset"]).assert().success();
 
     // Add baz, remove bar, then update.
     create_test_pkg(&ctx.repo_dir.path(), "baz", "1.0-1", "x86_64");
     std::fs::remove_file(ctx.repo_dir.path().join("bar-1.0-1-x86_64.pkg.tar.zst")).unwrap();
 
-    ctx.cmd()
-        .args(["--profile", "test", "update"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "update"]).assert().success();
 
     assert_pg_has(&ctx.db, &ctx.repo_name, "foo").await;
     assert_pg_has(&ctx.db, &ctx.repo_name, "baz").await;
@@ -263,18 +227,12 @@ async fn update_version_bump_pg() {
     let ctx = PgTestCtx::new(&pg_url, "test", "pg-ver-test").await;
 
     create_test_pkg(&ctx.repo_dir.path(), "foo", "1.0-1", "x86_64");
-    ctx.cmd()
-        .args(["--profile", "test", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "reset"]).assert().success();
 
     assert_pg_version(&ctx.db, &ctx.repo_name, "foo", "1.0-1").await;
 
     create_test_pkg(&ctx.repo_dir.path(), "foo", "2.0-1", "x86_64");
-    ctx.cmd()
-        .args(["--profile", "test", "update"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "update"]).assert().success();
 
     assert_pg_version(&ctx.db, &ctx.repo_name, "foo", "2.0-1").await;
 }
@@ -286,10 +244,7 @@ async fn move_pkgs_to_repo_updates_pg() {
     let cwd_dir = TempDir::new().unwrap();
 
     create_test_pkg(&ctx.repo_dir.path(), "existing", "1.0-1", "x86_64");
-    ctx.cmd()
-        .args(["--profile", "test", "reset"])
-        .assert()
-        .success();
+    ctx.cmd().args(["--profile", "test", "reset"]).assert().success();
 
     create_test_pkg(cwd_dir.path(), "newcomer", "1.0-1", "x86_64");
 
@@ -318,37 +273,25 @@ async fn move_pkgs_repo_to_repo_updates_pg() {
     db.migrate().await.unwrap();
     let _guard = PgRepoGuard::new(pg_url.clone(), vec![src_repo.clone(), dest_repo.clone()]);
 
-    let config = make_multi_pg_config(
-        &pg_url,
-        &[
-            TestProfileConfig::new("src", src_db_path.to_str().unwrap()),
-            TestProfileConfig::new("dest", dest_db_path.to_str().unwrap()),
-        ],
-    );
+    let config = make_multi_pg_config(&pg_url, &[
+        TestProfileConfig::new("src", src_db_path.to_str().unwrap()),
+        TestProfileConfig::new("dest", dest_db_path.to_str().unwrap()),
+    ]);
     let (_home, home_path) = setup_test_env(&config);
 
     create_test_pkg(dest_dir.path(), "baz", "1.0-1", "x86_64");
-    build_cmd(&home_path)
-        .args(["--profile", "dest", "reset"])
-        .assert()
-        .success();
+    build_cmd(&home_path).args(["--profile", "dest", "reset"]).assert().success();
 
     assert_pg_has(&db, &dest_repo, "baz").await;
 
     create_test_pkg(src_dir.path(), "foo", "1.0-1", "x86_64");
     create_test_pkg(src_dir.path(), "bar", "1.0-1", "x86_64");
-    build_cmd(&home_path)
-        .args(["--profile", "src", "reset"])
-        .assert()
-        .success();
+    build_cmd(&home_path).args(["--profile", "src", "reset"]).assert().success();
 
     assert_pg_has(&db, &src_repo, "foo").await;
     assert_pg_has(&db, &src_repo, "bar").await;
 
-    build_cmd(&home_path)
-        .args(["--from", "src", "--to", "dest", "move-pkgs"])
-        .assert()
-        .success();
+    build_cmd(&home_path).args(["--from", "src", "--to", "dest", "move-pkgs"]).assert().success();
 
     assert_pg_not_has(&db, &src_repo, "foo").await;
     assert_pg_not_has(&db, &src_repo, "bar").await;

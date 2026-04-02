@@ -1,12 +1,13 @@
 use crate::postgresql_helper::PostgresqlHelper;
 use crate::{pg_types, pkg_utils};
 
+use std::fs;
 use std::path::Path;
-use std::{env, fs};
 
 use alpm::Alpm;
 use anyhow::{Context, Result};
 use sqlx::{Postgres, Transaction};
+use tempfile::TempDir;
 
 #[derive(Debug, PartialEq)]
 struct RepoData {
@@ -39,9 +40,8 @@ fn init_alpm(pacman_path: &str, repo_list: &[RepoData], is_files_repo: bool) -> 
     Ok(handle)
 }
 
-fn init_profile_repo_ext(repo_filepath: &str, is_files_repo: bool) -> Result<Alpm> {
+fn init_profile_repo_ext(repo_filepath: &str, is_files_repo: bool) -> Result<(Alpm, TempDir)> {
     let temp_dir = tempfile::tempdir().context("Failed to create temp dir")?;
-    let temp_dir_path = temp_dir.keep();
 
     let repo_dir =
         Path::new(repo_filepath).parent().expect("Failed to get parent dir from repo filepath");
@@ -50,10 +50,11 @@ fn init_profile_repo_ext(repo_filepath: &str, is_files_repo: bool) -> Result<Alp
     let repo_db_prefix = pkg_utils::get_repo_db_prefix(repo_filepath);
 
     let repo_list = vec![RepoData { repo_name: repo_db_prefix, repo_server: repo_url }];
-    init_alpm(temp_dir_path.to_str().unwrap(), &repo_list, is_files_repo)
+    let handle = init_alpm(temp_dir.path().to_str().unwrap(), &repo_list, is_files_repo)?;
+    Ok((handle, temp_dir))
 }
 
-fn init_profile_repo(repo_filepath: &str) -> Result<Alpm> {
+fn init_profile_repo(repo_filepath: &str) -> Result<(Alpm, TempDir)> {
     init_profile_repo_ext(repo_filepath, false)
 }
 
@@ -64,7 +65,7 @@ pub fn exclude_existing_pkgs(
     // we iterate through DB with alpm crate, and check for each package
     // if the package exist in the repo and is newer or equal to the one
     // in the list, then we remove it from the list of packages
-    let alpm_handle =
+    let (alpm_handle, _temp_dir) =
         init_profile_repo(repo_db_path).context("Failed to init alpm for src profile repo")?;
 
     // iterate through every package in the database using map iter
@@ -80,9 +81,6 @@ pub fn exclude_existing_pkgs(
         }
     });
 
-    // cleanup temp dir after we are done
-    cleanup_alpm_tempdir(&alpm_handle)?;
-
     Ok(removed_pkgs)
 }
 
@@ -94,7 +92,7 @@ pub fn get_packages_from_filepaths(
     // we iterate through DB with alpm crate, and check for each package
     // if the package file exist in the repo directory and is in the
     // list of filepaths
-    let alpm_handle =
+    let (alpm_handle, _temp_dir) =
         init_profile_repo(repo_db_path).context("Failed to init alpm for stale packages")?;
 
     let repo_dir = Path::new(&repo_db_path).parent().unwrap();
@@ -114,9 +112,6 @@ pub fn get_packages_from_filepaths(
         .map(|x| x.name().to_string())
         .collect();
 
-    // cleanup temp dir after we are done
-    cleanup_alpm_tempdir(&alpm_handle)?;
-
     Ok(found_pkgs)
 }
 
@@ -127,7 +122,7 @@ where
 {
     // we iterate through DB with alpm crate, and check for each package
     // if the package file still exist in the repo directory
-    let alpm_handle =
+    let (alpm_handle, _temp_dir) =
         init_profile_repo(repo_db_path).context("Failed to init alpm for stale packages")?;
 
     let repo_dir = Path::new(&repo_db_path).parent().unwrap();
@@ -146,9 +141,6 @@ where
         })
         .map(|x| project(x))
         .collect();
-
-    // cleanup temp dir after we are done
-    cleanup_alpm_tempdir(&alpm_handle)?;
 
     Ok(stale_pkgs)
 }
@@ -174,7 +166,7 @@ pub fn get_brand_new_packages(repo_db_path: &str) -> Result<Vec<String>> {
 
     // we iterate through DB with alpm crate, and check for each package in the list
     // if it doesn't, then we found "brand new" package (which doesn't exist yet in DB)
-    let alpm_handle =
+    let (alpm_handle, _temp_dir) =
         init_profile_repo(repo_db_path).context("Failed to init alpm for stale packages")?;
 
     // iterate through all files and check if they exist in the repo
@@ -192,9 +184,6 @@ pub fn get_brand_new_packages(repo_db_path: &str) -> Result<Vec<String>> {
         }
     }
 
-    // cleanup temp dir after we are done
-    cleanup_alpm_tempdir(&alpm_handle)?;
-
     Ok(new_pkgs)
 }
 
@@ -204,9 +193,9 @@ pub fn get_newer_packages_from_reference(
     repo_db_path: &str,
     reference_repo_path: &str,
 ) -> Result<Vec<String>> {
-    let alpm_handle =
+    let (alpm_handle, _temp_dir) =
         init_profile_repo(repo_db_path).context("Failed to init alpm for profile repo")?;
-    let reference_alpm_handle =
+    let (reference_alpm_handle, _ref_temp_dir) =
         init_profile_repo(reference_repo_path).context("Failed to init alpm for reference repo")?;
 
     let mut packages_to_copy = Vec::new();
@@ -240,10 +229,6 @@ pub fn get_newer_packages_from_reference(
         }
     }
 
-    // Cleanup temp dirs after we are done
-    cleanup_alpm_tempdir(&alpm_handle)?;
-    cleanup_alpm_tempdir(&reference_alpm_handle)?;
-
     Ok(packages_to_copy)
 }
 
@@ -252,7 +237,7 @@ pub async fn populate_repo_to_db(
     repo_db_path: &str,
     tx: &mut Transaction<'_, Postgres>,
 ) -> Result<()> {
-    let alpm_handle =
+    let (alpm_handle, _temp_dir) =
         init_profile_repo_ext(repo_db_path, true).context("Failed to init alpm for the db")?;
 
     // Ensure the repository is registered
@@ -289,9 +274,6 @@ pub async fn populate_repo_to_db(
 
     tracing::debug!("Populated packages from repository {repo_name} to the database");
 
-    // Cleanup temp dirs after we are done
-    cleanup_alpm_tempdir(&alpm_handle)?;
-
     Ok(())
 }
 
@@ -301,7 +283,7 @@ pub async fn add_pkgs_to_db(
     tx: &mut Transaction<'_, Postgres>,
     new_pkgs: &[String],
 ) -> Result<()> {
-    let alpm_handle =
+    let (alpm_handle, _temp_dir) =
         init_profile_repo_ext(repo_db_path, true).context("Failed to init alpm for the db")?;
 
     // Ensure the repository is registered
@@ -342,24 +324,6 @@ pub async fn add_pkgs_to_db(
     }
 
     tracing::debug!("Added {repo_name} packages to the database");
-
-    // Cleanup temp dirs after we are done
-    cleanup_alpm_tempdir(&alpm_handle)?;
-
-    Ok(())
-}
-
-fn cleanup_alpm_tempdir(alpm_handle: &Alpm) -> Result<()> {
-    let tmp_dir = env::temp_dir();
-
-    let alpm_root_dir = alpm_handle.root();
-    if !alpm_root_dir.starts_with(tmp_dir.to_str().unwrap()) {
-        tracing::error!("alpm handle root at '{alpm_root_dir}' wasn't removed");
-        return Ok(());
-    }
-
-    // remove our temp repo dir
-    fs::remove_dir_all(alpm_root_dir)?;
 
     Ok(())
 }

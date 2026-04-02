@@ -183,10 +183,9 @@ fn check_broken_packages_with(
 
     let analyses: Vec<PackageAnalysis> = pkg_paths
         .par_iter()
-        .enumerate()
-        .filter_map(|(i, pkg_path_str)| {
+        .filter_map(|pkg_path_str| {
             let pkg_path = Path::new(pkg_path_str);
-            tracing::debug!("[{}/{}] Analyzing {pkg_path_str}", i + 1, total);
+            tracing::debug!("Analyzing {pkg_path_str}");
 
             match analyze_package(pkg_path) {
                 Ok(analysis) => Some(analysis),

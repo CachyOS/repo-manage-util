@@ -140,6 +140,11 @@ fn make_config(repo_db_path: &str, debug_db_path: Option<&str>) -> String {
     cfg.to_toml()
 }
 
+/// Rewrite the config file in a test HOME directory.
+fn rewrite_config(home: &Path, config: &str) {
+    fs::write(home.join(".config/repo-manage/config.toml"), config).unwrap();
+}
+
 /// List package entries from a repo DB file (`.db.tar.zst`).
 /// Returns sorted list of `{pkgname}-{pkgver}` strings.
 fn list_db_entries(db_path: &Path) -> Vec<String> {
@@ -512,10 +517,8 @@ fn move_pkgs_to_repo_routes_debug() {
 
 #[test]
 fn missing_profile_fails() {
-    // Any valid config will do — the profile name is what matters
-    let config = "[profiles.test]\nrepo = \"/dev/null/dummy.db.tar.zst\"\nadd_params = \
-                  []\nrm_params = []\nrequire_signature = false\nbackup = false\n";
-    let (_home, home_path) = setup_test_env(config);
+    let config = make_config("/dev/null/dummy.db.tar.zst", None);
+    let (_home, home_path) = setup_test_env(&config);
 
     build_cmd(&home_path).args(["--profile", "nonexistent", "reset"]).assert().failure();
 }
@@ -641,7 +644,6 @@ fn is_pkgs_up_to_date_detects_debug_in_prod() {
     create_test_pkg(repo_dir.path(), "foo", "1.0-1", "x86_64");
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
-    // Manually place a debug package back in prod dir (simulating misplacement)
     create_test_pkg(repo_dir.path(), "foo-debug", "1.0-1", "x86_64");
 
     build_cmd(&home_path)
@@ -733,11 +735,11 @@ fn sync_copies_newer_packages() {
     let profile_db = profile_dir.path().join("profile.db.tar.zst");
     let ref_db = ref_dir.path().join("ref.db.tar.zst");
 
-    let ref_config = TestProfileConfig::new("ref", ref_db.to_str().unwrap()).to_toml();
-    let profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
-        .reference_repo(ref_db.to_str().unwrap())
-        .to_toml();
-    let config = format!("{ref_config}\n{profile_config}");
+    let config = make_multi_profile_config(&[
+        TestProfileConfig::new("ref", ref_db.to_str().unwrap()),
+        TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+            .reference_repo(ref_db.to_str().unwrap()),
+    ]);
     let (_home, home_path) = setup_test_env(&config);
 
     create_test_pkg(ref_dir.path(), "foo", "2.0-1", "x86_64");
@@ -761,11 +763,11 @@ fn sync_noop_when_up_to_date() {
     let profile_db = profile_dir.path().join("profile.db.tar.zst");
     let ref_db = ref_dir.path().join("ref.db.tar.zst");
 
-    let ref_config = TestProfileConfig::new("ref", ref_db.to_str().unwrap()).to_toml();
-    let profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
-        .reference_repo(ref_db.to_str().unwrap())
-        .to_toml();
-    let config = format!("{ref_config}\n{profile_config}");
+    let config = make_multi_profile_config(&[
+        TestProfileConfig::new("ref", ref_db.to_str().unwrap()),
+        TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+            .reference_repo(ref_db.to_str().unwrap()),
+    ]);
     let (_home, home_path) = setup_test_env(&config);
 
     create_test_pkg(ref_dir.path(), "foo", "1.0-1", "x86_64");
@@ -802,13 +804,12 @@ fn sync_routes_debug_packages() {
     let ref_db = ref_dir.path().join("ref.db.tar.zst");
     let debug_db = debug_dir.path().join("profile-debug.db.tar.zst");
 
-    let ref_config = TestProfileConfig::new("ref", ref_db.to_str().unwrap()).to_toml();
-
     // Set up profile WITHOUT debug_repo first, so foo-debug-1.0 stays in main DB
-    let initial_profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
-        .reference_repo(ref_db.to_str().unwrap())
-        .to_toml();
-    let initial_config = format!("{ref_config}\n{initial_profile_config}");
+    let initial_config = make_multi_profile_config(&[
+        TestProfileConfig::new("ref", ref_db.to_str().unwrap()),
+        TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+            .reference_repo(ref_db.to_str().unwrap()),
+    ]);
     let (_home, home_path) = setup_test_env(&initial_config);
 
     create_test_pkg(ref_dir.path(), "foo", "1.0-1", "x86_64");
@@ -820,12 +821,13 @@ fn sync_routes_debug_packages() {
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "reset"]).assert().success();
 
     // Rewrite config with debug_repo enabled for the sync step
-    let final_profile_config = TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
-        .reference_repo(ref_db.to_str().unwrap())
-        .debug_repo(debug_db.to_str().unwrap())
-        .to_toml();
-    let final_config = format!("{ref_config}\n{final_profile_config}");
-    fs::write(home_path.join(".config/repo-manage/config.toml"), final_config).unwrap();
+    let final_config = make_multi_profile_config(&[
+        TestProfileConfig::new("ref", ref_db.to_str().unwrap()),
+        TestProfileConfig::new(TEST_PROFILE, profile_db.to_str().unwrap())
+            .reference_repo(ref_db.to_str().unwrap())
+            .debug_repo(debug_db.to_str().unwrap()),
+    ]);
+    rewrite_config(&home_path, &final_config);
 
     build_cmd(&home_path).args(["--profile", TEST_PROFILE, "sync"]).assert().success();
 

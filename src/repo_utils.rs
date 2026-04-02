@@ -3,10 +3,10 @@ use crate::config;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use subprocess::{Exec, Redirection};
 
 // Calls repo-add on provided repo and package files
 pub fn handle_repo_add(profile: &config::Profile, pkgfiles: &[String]) -> Result<()> {
@@ -24,15 +24,17 @@ pub fn repo_add(repo_db: &str, add_params: &[String], pkgfiles: &[String]) -> Re
     repo_add_args.extend_from_slice(pkgfiles);
     tracing::debug!("repo_add_args := {repo_add_args:?}");
 
-    let output = Exec::cmd("repo-add")
+    let output = Command::new("repo-add")
         .args(&repo_add_args)
-        .stderr(Redirection::Merge)
-        .stdout(Redirection::Pipe)
-        .capture()?;
+        .stderr(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .output()
+        .context("Failed to execute repo-add")?;
 
     let proc_output = String::from_utf8_lossy(&output.stdout);
-    if !output.success() {
-        tracing::error!("repo-add output:\n{proc_output}");
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!("repo-add output:\n{proc_output}\n{stderr}");
         anyhow::bail!("repo-add failed!");
     }
     tracing::debug!("repo-add output:\n{proc_output}");
@@ -48,15 +50,17 @@ pub fn repo_remove(repo_db: &str, rm_params: &[String], pkgname_list: &[String])
     repo_remove_args.extend_from_slice(pkgname_list);
     tracing::debug!("repo_remove_args := {repo_remove_args:?}");
 
-    let output = Exec::cmd("repo-remove")
+    let output = Command::new("repo-remove")
         .args(&repo_remove_args)
-        .stderr(Redirection::Merge)
-        .stdout(Redirection::Pipe)
-        .capture()?;
+        .stderr(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .output()
+        .context("Failed to execute repo-remove")?;
 
     let proc_output = String::from_utf8_lossy(&output.stdout);
-    if !output.success() {
-        tracing::error!("repo-remove output:\n{proc_output}");
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!("repo-remove output:\n{proc_output}\n{stderr}");
         anyhow::bail!("repo-remove failed!");
     }
     tracing::debug!("repo-remove output:\n{proc_output}");

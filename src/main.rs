@@ -220,11 +220,23 @@ async fn do_repo_update(
         pkg_utils::remove_pkgs_without_sig(&mut new_pkgs);
     }
 
-    let debug_pkgs = if profile.debug_repo.is_some() {
+    let mut debug_pkgs = if profile.debug_repo.is_some() {
         pkg_utils::exclude_debug_pkgs(&mut new_pkgs)
     } else {
         vec![]
     };
+
+    // Also catch debug packages already sitting in the prod repo dir
+    // (e.g. added before debug_repo was configured, or missed in a prior run).
+    let existing_debug_pkgs: Vec<String> = if profile.debug_repo.is_some() {
+        pkg_utils::get_debug_packages(&pkgs_list)
+            .into_iter()
+            .filter(|p| !debug_pkgs.contains(p))
+            .collect()
+    } else {
+        vec![]
+    };
+    debug_pkgs.extend(existing_debug_pkgs.iter().cloned());
 
     // if update available then update the DB accordingly
     // overwise silently skip and go to stale packages handling
@@ -240,6 +252,19 @@ async fn do_repo_update(
     }
 
     route_debug_pkgs_to_debug_repo(profile, &debug_pkgs, false)?;
+
+    // Remove pre-existing debug packages from the main repo DB
+    // (new debug pkgs were excluded before handle_repo_add, so they were never in the DB)
+    let existing_debug_pkg_names: Vec<String> = existing_debug_pkgs
+        .iter()
+        .map(|p| {
+            let filename = Path::new(p).file_name().unwrap().to_str().unwrap();
+            pkg_utils::get_pkgname_from_filename(filename).to_owned()
+        })
+        .collect();
+    if !existing_debug_pkg_names.is_empty() {
+        repo_utils::repo_remove(&profile.repo, &profile.rm_params, &existing_debug_pkg_names)?;
+    }
 
     // 2. handle stale packages
     let stale_pkgs =
@@ -263,12 +288,14 @@ async fn do_repo_update(
     }
 
     // report status only when had some work
-    if !new_pkgs.is_empty() || !stale_pkgs.is_empty() {
+    if !new_pkgs.is_empty() || !stale_pkgs.is_empty() || !existing_debug_pkg_names.is_empty() {
         // Update db if configured
         if let Some(ref pg) = pg_helper {
             let mut tx = pg.begin().await?;
             let repo_name = pkg_utils::get_repo_db_prefix(&profile.repo);
-            PostgresqlHelper::remove_packages_on(&mut tx, &repo_name, &stale_pkgs).await?;
+            let mut pkgs_to_remove = stale_pkgs;
+            pkgs_to_remove.extend(existing_debug_pkg_names.iter().cloned());
+            PostgresqlHelper::remove_packages_on(&mut tx, &repo_name, &pkgs_to_remove).await?;
             alpm_helper::add_pkgs_to_db(&profile.repo, &mut tx, &new_pkgs).await?;
             tx.commit().await.context("Failed to commit repo update transaction")?;
         }

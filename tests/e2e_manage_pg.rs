@@ -305,3 +305,46 @@ async fn move_pkgs_repo_to_repo_updates_pg() {
     assert!(!src_dir.path().join("foo-1.0-1-x86_64.pkg.tar.zst").exists());
     assert!(!src_dir.path().join("bar-1.0-1-x86_64.pkg.tar.zst").exists());
 }
+
+#[tokio::test]
+async fn update_moves_existing_debug_pkgs_from_pg() {
+    let pg_url = require_pg!();
+
+    let repo_dir = TempDir::new().unwrap();
+    let debug_dir = TempDir::new().unwrap();
+    let db_path = repo_dir.path().join("pg-debug-mv.db.tar.zst");
+    let debug_db_path = debug_dir.path().join("pg-debug-mv-debug.db.tar.zst");
+    let repo_name = get_repo_db_prefix(db_path.to_str().unwrap());
+
+    let db = Db::connect(&pg_url).await.unwrap();
+    db.migrate().await.unwrap();
+    let _guard =
+        PgRepoGuard::new(pg_url.clone(), vec![repo_name.clone(), format!("{repo_name}-debug")]);
+
+    // Phase 1: reset WITHOUT debug_repo so debug packages land in main DB + PG
+    let config_no_debug = make_pg_config(&pg_url, "test", db_path.to_str().unwrap());
+    let (home, home_path) = setup_test_env(&config_no_debug);
+
+    create_test_pkg(&repo_dir.path(), "foo", "1.0-1", "x86_64");
+    create_test_pkg(&repo_dir.path(), "foo-debug", "1.0-1", "x86_64");
+    build_cmd(&home_path).args(["--profile", "test", "reset"]).assert().success();
+
+    // Both should be in PG main repo after reset
+    assert_pg_has(&db, &repo_name, "foo").await;
+    assert_pg_has(&db, &repo_name, "foo-debug").await;
+
+    // Phase 2: reconfigure WITH debug_repo, then update
+    let config_with_debug =
+        make_multi_pg_config(&pg_url, &[TestProfileConfig::new("test", db_path.to_str().unwrap())
+            .debug_repo(debug_db_path.to_str().unwrap())]);
+    rewrite_config(home.path(), &config_with_debug);
+
+    build_cmd(&home_path).args(["--profile", "test", "update"]).assert().success();
+
+    assert_pg_has(&db, &repo_name, "foo").await;
+    assert_pg_not_has(&db, &repo_name, "foo-debug").await;
+
+    // Debug pkg files moved to debug dir
+    assert!(!repo_dir.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+    assert!(debug_dir.path().join("foo-debug-1.0-1-x86_64.pkg.tar.zst").exists());
+}

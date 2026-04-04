@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-"""// Copyright (C) 2022-2025 Vladislav Nepogodin
+"""// Copyright (C) 2022-2026 Vladislav Nepogodin
 //
 // This file is part of CachyOS.
 //
@@ -40,7 +40,7 @@ def main():
             exit(1)
 
         os.chdir(SRC_PATH + "/third_party/userver")
-        subprocess.run(["git", "checkout", "cfa5e646d56746220ff2d47cd45145aa4bd73505"])
+        subprocess.run(["git", "checkout", "ff72a3778e0426c2fe8ee1c40321fe0d47fddada"])
         subprocess.run(["patch", "-Np1", "-i", SRC_PATH + "/fix-postgresql.patch"])
 
 

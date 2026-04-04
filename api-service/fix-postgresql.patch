@@ -1,20 +1,21 @@
 diff --git a/cmake/SetupAbseil.cmake b/cmake/SetupAbseil.cmake
-index 3041a3e03..e66cf8ed2 100644
+index c8494f002..f4547db1d 100644
 --- a/cmake/SetupAbseil.cmake
 +++ b/cmake/SetupAbseil.cmake
-@@ -1,9 +1,9 @@
- # userver does not use Abseil directly, but some libraries need it.
+@@ -2,10 +2,10 @@
  
+ # @ingroup download
  option(USERVER_DOWNLOAD_PACKAGE_ABSEIL "Download and setup Abseil if no Abseil matching version was found"
 -       ${USERVER_DOWNLOAD_PACKAGES}
 +    ON
  )
+ # @ingroup download
 -option(USERVER_FORCE_DOWNLOAD_ABSEIL "Download Abseil even if it exists in a system" ${USERVER_DOWNLOAD_PACKAGES})
 +option(USERVER_FORCE_DOWNLOAD_ABSEIL "Download Abseil even if it exists in a system" ON)
  
  if(NOT USERVER_FORCE_DOWNLOAD_ABSEIL)
      set(ABSL_PROPAGATE_CXX_STD ON)
-@@ -23,8 +23,8 @@ include(DownloadUsingCPM)
+@@ -25,8 +25,8 @@ include(DownloadUsingCPM)
  
  cpmaddpackage(
      NAME absl
@@ -48,7 +49,7 @@ index 903c61f1d..4725218b5 100644
  )
  
 diff --git a/cmake/UserverSetupEnvironment.cmake b/cmake/UserverSetupEnvironment.cmake
-index 1cf0b8bf5..9a958a501 100644
+index f2bfb54dd..31a30fda7 100644
 --- a/cmake/UserverSetupEnvironment.cmake
 +++ b/cmake/UserverSetupEnvironment.cmake
 @@ -18,14 +18,6 @@ function(_userver_setup_environment_validate_impl)
@@ -82,7 +83,7 @@ index 1cf0b8bf5..9a958a501 100644
          ON
          PARENT_SCOPE
 diff --git a/cmake/modules/FindPostgreSQLInternal.cmake b/cmake/modules/FindPostgreSQLInternal.cmake
-index 10ade4513..e665047bd 100644
+index 10ade4513..40fb2200a 100644
 --- a/cmake/modules/FindPostgreSQLInternal.cmake
 +++ b/cmake/modules/FindPostgreSQLInternal.cmake
 @@ -8,7 +8,8 @@ _userver_module_begin(
@@ -176,7 +177,7 @@ index c27f74b28..7c68a19b6 100644
  if("addr" IN_LIST SANITIZERS_LIST)
      target_compile_definitions(${PROJECT_NAME} PUBLIC "BOOST_USE_ASAN")
 diff --git a/universal/CMakeLists.txt b/universal/CMakeLists.txt
-index f6c652ab4..3ac52d018 100644
+index 213165c08..58243c866 100644
 --- a/universal/CMakeLists.txt
 +++ b/universal/CMakeLists.txt
 @@ -9,7 +9,7 @@ if(TARGET userver-core)
@@ -188,7 +189,7 @@ index f6c652ab4..3ac52d018 100644
  
  file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-@@ -142,7 +142,7 @@ if(NOT USERVER_NO_WERROR)
+@@ -141,7 +141,7 @@ if(NOT USERVER_NO_WERROR)
      target_compile_options(userver-internal-compile-options INTERFACE "-Werror")
  endif()
  
@@ -197,7 +198,7 @@ index f6c652ab4..3ac52d018 100644
  
  # The library itself
  add_library(${PROJECT_NAME} STATIC ${SOURCES})
-@@ -233,7 +233,7 @@ endif()
+@@ -232,7 +232,7 @@ endif()
  
  target_link_libraries(
      ${PROJECT_NAME}
@@ -206,7 +207,7 @@ index f6c652ab4..3ac52d018 100644
      PRIVATE Boost::filesystem Boost::program_options OpenSSL::SSL OpenSSL::Crypto
  )
  if(TARGET Boost::algorithm)
-@@ -360,10 +360,10 @@ if(USERVER_BUILD_TESTS)
+@@ -351,10 +351,10 @@ if(USERVER_BUILD_TESTS)
          PUBLIC ${PROJECT_NAME}
      )
      add_test(

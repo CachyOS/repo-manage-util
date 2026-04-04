@@ -14,7 +14,7 @@ sudo pacman -Syu --noconfirm --noprogressbar --needed \
 ./setup_userver.py $PWD
 
 # (Optional) Install previous versions of zlib:
-sudo pacman -Syu zlib lib32-zlib
+sudo pacman -Syu zlib lib32-zlib zlib-static
 
 # Build with tests:
 ./configure.sh -t=Debug --use_clang --enable_tests && ./build.sh

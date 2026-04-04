@@ -2,7 +2,7 @@ FROM archlinux:base-devel as builder
 
 # Install app dependencies
 RUN pacman -Syu --noconfirm --noprogressbar --needed \
-    git python cmake ninja clang llvm lld boost boost-libs libbsd tcl libxml2 util-linux zlib \
+    git python cmake ninja clang llvm lld boost boost-libs libbsd tcl libxml2 util-linux zlib zlib-static \
     sudo crypto++ yaml-cpp c-ares libev python-jinja \
     libnghttp2 postgresql meson pkg-config rust hiredis
 
@@ -55,7 +55,7 @@ COPY --from=builder /usr/lib/libcctz.so* /usr/lib/
 COPY --from=builder /usr/lib/libhttp_parser.so* /usr/lib/
 
 RUN pacman -Syu --needed --noconfirm --noprogressbar \
-    sudo boost-libs libbsd tcl libxml2 util-linux zlib \
+    sudo boost-libs libbsd tcl libxml2 util-linux zlib zlib-static \
     crypto++ yaml-cpp c-ares libev \
     postgresql hiredis
 

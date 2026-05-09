@@ -91,13 +91,13 @@ pub async fn pull_tarballs<PathLike: AsRef<Path>>(
     let mut pkgbases = targets.iter().map(|x| x.package_base.clone()).collect::<Vec<_>>();
     pkgbases.dedup();
     for pkgbase in &pkgbases {
-        if pull_tarball(pkgbase, dest_path.as_ref()).await.is_ok() {
+        if pull_git_source(pkgbase, dest_path.as_ref()).is_ok() {
             continue;
         }
 
-        // fallback to AUR Git
-        tracing::debug!("Using Git fallback for {pkgbase}");
-        pull_git_source(pkgbase, dest_path.as_ref())?;
+        // fallback to AUR snapshot tarball
+        tracing::debug!("Using tarball fallback for {pkgbase}");
+        pull_tarball(pkgbase, dest_path.as_ref()).await?;
     }
 
     Ok(())

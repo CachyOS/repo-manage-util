@@ -10,7 +10,13 @@ fn main() {
 
     let mut command = Cli::command();
     for shell in [Shell::Bash, Shell::Fish, Shell::Zsh] {
-        generate_to(shell, &mut command, "repo-manage-util", &out_path)
-            .expect("Couldn't generate completion!");
+        generate_to(shell, &mut command, "repo-manage-util", &out_path).unwrap_or_else(|err| {
+            panic!(
+                "Couldn't generate completion for shell {:?} in {}: {}",
+                shell,
+                out_path.display(),
+                err
+            )
+        });
     }
 }

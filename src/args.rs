@@ -53,7 +53,7 @@ pub struct ProfileAurCli {
     pub profile: String,
 
     /// Build order based on dependency tree into a file
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(long, value_name = "FILE")]
     pub order_file: Option<PathBuf>,
 
     /// Dry run (without downloading sources)

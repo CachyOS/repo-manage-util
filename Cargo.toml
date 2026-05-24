@@ -34,7 +34,7 @@ goblin = "0.10"
 rayon = "1.11"
 
 [build-dependencies]
-clap = { features = ["derive"], version = "4" }
+clap = { features = ["derive"], version = "4.6" }
 clap_complete = "4"
 
 [dev-dependencies]

@@ -12,7 +12,25 @@ import __main__
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'helpers'))
 
+USERVER_CONFIG_HOOKS = ['userver_config_mirrors']
+
 pytest_plugins = ['pytest_userver.plugins.core', 'pytest_userver.plugins.postgresql', 'pytest_userver.plugins.redis']
+
+
+@pytest.fixture(scope='session')
+def userver_config_mirrors(mockserver_info):
+    def _patch_config(config_yaml, config_vars):
+        components = config_yaml['components_manager']['components']
+        mirrors_cache = components['mirrors-data-cache']
+        mirrors_cache['mirrorlist-url'] = mockserver_info.url('/mirrors/list')
+        mirrors_cache['primary-mirror-url'] = mockserver_info.url('/primary')
+        mirrors_cache['repo-paths'] = [
+            'x86_64/cachyos',
+            'x86_64_v3/cachyos-v3',
+            'x86_64_v4/cachyos-v4',
+        ]
+
+    return _patch_config
 
 @pytest.fixture(scope='session')
 def service_source_dir():

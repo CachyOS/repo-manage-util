@@ -112,6 +112,8 @@ target_compile_features(project_options INTERFACE cxx_std_23)
 ##
 add_executable(api-postgresql-service
    src/http_utils.cpp
+  src/mirrors_data_cache.cpp
+  src/mirrors_data_handler.cpp
    src/package_utils.cpp
    src/package_handler.cpp
    src/package_files_handler.cpp

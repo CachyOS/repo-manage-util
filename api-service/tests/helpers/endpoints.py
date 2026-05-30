@@ -23,3 +23,8 @@ async def get_packages_suggest(service_client, limit:int = 10, query: str = ''):
     f'/api/v1/packages/suggest/{query}?limit={limit}',
   )
 
+async def get_mirrors_data(service_client):
+  return await service_client.get(
+    '/api/v1/mirrors/data',
+  )
+

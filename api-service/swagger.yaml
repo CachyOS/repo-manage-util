@@ -200,6 +200,19 @@ paths:
                       $ref: "#/components/schemas/BriefPackage"
         "404":
           description: The requested package base was not found.
+  /mirrors/data:
+    get:
+      summary: Get mirror health data
+      description: |
+        Returns baseline timestamps for tracked repository paths and the computed
+        health state of each mirror.
+      responses:
+        "200":
+          description: Mirror health data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MirrorsDataResponse"
 
 components:
   schemas:
@@ -335,3 +348,56 @@ components:
         updated:
           type: integer
           format: int64
+    MirrorBaseline:
+      type: object
+      properties:
+        path:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+          nullable: true
+    MirrorRepoCheck:
+      type: object
+      properties:
+        path:
+          type: string
+        lastUpdated:
+          type: integer
+          format: int64
+          nullable: true
+        status:
+          type: string
+          enum: [synced, out-of-sync, error]
+        syncLagSeconds:
+          type: integer
+          format: int64
+          nullable: true
+    MirrorResult:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/MirrorRepoCheck"
+        averageLagSeconds:
+          type: number
+          nullable: true
+        overallStatus:
+          type: string
+          enum: [healthy, partial, out-of-sync, error]
+    MirrorsDataResponse:
+      type: object
+      properties:
+        baselines:
+          type: array
+          items:
+            $ref: "#/components/schemas/MirrorBaseline"
+        mirrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/MirrorResult"

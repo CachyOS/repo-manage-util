@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cctype>
-#include <cmath>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -41,14 +41,30 @@
 
 namespace
 {
-    constexpr std::string_view kStatusSynced = "synced";
-    constexpr std::string_view kStatusOutOfSync = "out-of-sync";
-    constexpr std::string_view kStatusError = "error";
+    enum class PendingServerState : std::uint8_t
+    {
+        kNone,
+        kEnabled,
+        kDisabled,
+    };
 
-    constexpr std::string_view kOverallHealthy = "healthy";
-    constexpr std::string_view kOverallPartial = "partial";
-    constexpr std::string_view kOverallOutOfSync = "out-of-sync";
-    constexpr std::string_view kOverallError = "error";
+    struct PendingMirrorMetadata
+    {
+        std::string country_code;
+        int tier{2};
+    };
+
+    struct ParsedServerDirective
+    {
+        bool matched{false};
+        std::optional<std::string_view> url;
+    };
+
+    struct RepoTimestampResult
+    {
+        std::string path;
+        std::optional<std::int64_t> timestamp;
+    };
 
     constexpr auto trim_view(std::string_view text) noexcept -> std::string_view
     {
@@ -101,51 +117,160 @@ namespace
         return value;
     }
 
-    auto normalize_mirror_base_url(std::string_view line) -> std::optional<std::string>
+    auto normalize_mirror_base_url(const std::string_view text) -> std::optional<std::string>
     {
-        auto normalized = std::string{trim_view(line)};
-        if (normalized.empty() || normalized.front() == '#')
+        auto normalized = std::string{trim_view(text)};
+        if (normalized.empty())
         {
             return std::nullopt;
         }
 
-        if (const auto equals_pos = normalized.find('='); equals_pos != std::string::npos)
+        if (normalized.front() == '=')
         {
-            if (const auto key = trim_view(std::string_view{normalized}.substr(0, equals_pos));
-                key != "Server")
-            {
-                return std::nullopt;
-            }
-            normalized = std::string{trim_view(std::string_view{normalized}.substr(equals_pos + 1))};
+            normalized.erase(0, 1);
+            normalized = std::string{trim_view(normalized)};
         }
 
-        if (!normalized.starts_with("http://") && !normalized.starts_with("https://"))
+        if (!normalized.starts_with("https://") && !normalized.starts_with("http://"))
         {
             return std::nullopt;
         }
 
         for (const auto suffix : {
+                 std::string_view{"/repo/$arch/$repo"},
                  std::string_view{"/$repo/$arch"},
                  std::string_view{"/$arch/$repo"},
                  std::string_view{"/$repo"},
                  std::string_view{"/$arch"},
              })
         {
-            if (const auto pos = normalized.find(suffix); pos != std::string::npos)
+            if (normalized.ends_with(suffix))
             {
-                normalized.erase(pos);
+                normalized.erase(normalized.size() - suffix.size());
+                break;
             }
         }
 
-        while (normalized.size() > 1 && normalized.back() == '/')
+        while (!normalized.empty() && normalized.back() == '/')
         {
             normalized.pop_back();
         }
 
+        normalized.push_back('/');
+
         return normalized;
     }
 
-    auto join_timestamp_url(std::string_view base_url, std::string_view repo_path) -> std::string
+    auto parse_value_after_key(const std::string_view text, const std::string_view key)
+        -> std::optional<std::string_view>
+    {
+        const auto key_pos = text.find(key);
+        if (key_pos == std::string_view::npos)
+        {
+            return std::nullopt;
+        }
+
+        auto value = trim_view(text.substr(key_pos + key.size()));
+        if (value.empty())
+        {
+            return std::nullopt;
+        }
+
+        std::size_t token_size = 0;
+        while (token_size < value.size() && std::isspace(static_cast<unsigned char>(value[token_size])) == 0)
+        {
+            ++token_size;
+        }
+
+        value = value.substr(0, token_size);
+        while (!value.empty() && std::ispunct(static_cast<unsigned char>(value.back())) != 0 && value.back() != '-')
+        {
+            value.remove_suffix(1);
+        }
+
+        if (value.empty())
+        {
+            return std::nullopt;
+        }
+
+        return value;
+    }
+
+    void update_metadata_from_comment(const std::string_view comment, PendingMirrorMetadata& metadata)
+    {
+        if (const auto tier_value = parse_value_after_key(comment, "tier="); tier_value.has_value())
+        {
+            if (const auto parsed_tier = parse_integer(*tier_value);
+                parsed_tier.has_value() && (*parsed_tier == 1 || *parsed_tier == 2))
+            {
+                metadata.tier = static_cast<int>(*parsed_tier);
+            }
+        }
+
+        if (const auto country_code_value = parse_value_after_key(comment, "code="); country_code_value.has_value())
+        {
+            metadata.country_code.clear();
+            metadata.country_code.reserve(country_code_value->size());
+            for (const auto symbol : *country_code_value)
+            {
+                metadata.country_code.push_back(
+                    static_cast<char>(std::toupper(static_cast<unsigned char>(symbol))));
+            }
+        }
+    }
+
+    auto try_extract_url(const std::string_view text) -> std::optional<std::string_view>
+    {
+        auto candidate = trim_view(text);
+        if (candidate.empty())
+        {
+            return std::nullopt;
+        }
+
+        if (candidate.front() == '=')
+        {
+            candidate.remove_prefix(1);
+            candidate = trim_view(candidate);
+        }
+
+        if (!candidate.starts_with("https://") && !candidate.starts_with("http://"))
+        {
+            return std::nullopt;
+        }
+
+        return candidate;
+    }
+
+    auto parse_server_directive(const std::string_view text) -> ParsedServerDirective
+    {
+        auto candidate = trim_view(text);
+        if (!candidate.starts_with("Server"))
+        {
+            return {};
+        }
+
+        candidate.remove_prefix(std::string_view{"Server"}.size());
+        candidate = trim_view(candidate);
+        if (candidate.empty())
+        {
+            return {.matched = true, .url = std::nullopt};
+        }
+
+        if (candidate.front() == '=')
+        {
+            candidate.remove_prefix(1);
+            candidate = trim_view(candidate);
+        }
+
+        if (candidate.empty())
+        {
+            return {.matched = true, .url = std::nullopt};
+        }
+
+        return {.matched = true, .url = candidate};
+    }
+
+    auto join_timestamp_url(const std::string_view base_url, const std::string_view repo_path) -> std::string
     {
         std::string url{base_url};
         if (!url.ends_with('/'))
@@ -153,61 +278,9 @@ namespace
             url.push_back('/');
         }
         url.append(repo_path);
-        if (!url.ends_with('/'))
-        {
-            url.push_back('/');
-        }
+        url.push_back('/');
         url.append("lastupdate");
         return url;
-    }
-
-    auto extract_hostname(std::string_view url) -> std::string
-    {
-        if (const auto scheme_pos = url.find("://"); scheme_pos != std::string_view::npos)
-        {
-            url.remove_prefix(scheme_pos + 3);
-        }
-
-        const auto slash_pos = url.find('/');
-        auto authority = url.substr(0, slash_pos);
-        if (const auto userinfo_pos = authority.rfind('@'); userinfo_pos != std::string_view::npos)
-        {
-            authority.remove_prefix(userinfo_pos + 1);
-        }
-
-        if (!authority.empty() && authority.front() == '[')
-        {
-            const auto end_pos = authority.find(']');
-            if (end_pos != std::string_view::npos)
-            {
-                return std::string{authority.substr(0, end_pos + 1)};
-            }
-        }
-
-        if (const auto colon_pos = authority.find(':');
-            colon_pos != std::string_view::npos)
-        {
-            authority = authority.substr(0, colon_pos);
-        }
-
-        return std::string{authority};
-    }
-
-    constexpr auto overall_status_rank(std::string_view status) noexcept -> int
-    {
-        if (status == kOverallHealthy)
-        {
-            return 0;
-        }
-        if (status == kOverallPartial)
-        {
-            return 1;
-        }
-        if (status == kOverallOutOfSync)
-        {
-            return 2;
-        }
-        return 3;
     }
 } // namespace
 
@@ -233,35 +306,120 @@ namespace service::mirrors
         userver::cache::UpdateStatisticsScope& stats_scope)
     {
         auto mirrors_data = ComputeMirrorsData();
-        const auto documents_count = mirrors_data.baselines.size() + mirrors_data.mirrors.size();
+        const auto documents_count = mirrors_data.mirrors.size();
         Set(std::move(mirrors_data));
         stats_scope.Finish(documents_count);
     }
 
-    auto MirrorsDataCache::FetchMirrorlist() const -> std::vector<std::string>
+    auto MirrorsDataCache::FetchMirrorlist() const -> std::vector<MirrorMetadata>
     {
-        std::vector<std::string> mirror_urls;
+        std::vector<MirrorMetadata> mirrors;
 
         try
         {
-            auto response = http_client_.CreateRequest().get(mirrorlist_url_).timeout(request_timeout_).perform();
+            const auto response = http_client_.CreateRequest().get(mirrorlist_url_).timeout(request_timeout_).perform();
             if (!response->IsOk())
             {
                 LOG_DEBUG() << "Mirror list request failed with status " << response->status_code();
-                return mirror_urls;
+                return mirrors;
             }
 
             std::unordered_set<std::string> seen_urls;
-            for (const auto line : split_lines(response->body_view()))
+            PendingMirrorMetadata current_metadata;
+            auto pending_server_state = PendingServerState::kNone;
+
+            const auto reset_pending_entry = [&]()
             {
-                const auto normalized = normalize_mirror_base_url(line);
+                current_metadata = PendingMirrorMetadata{};
+                pending_server_state = PendingServerState::kNone;
+            };
+
+            const auto append_mirror = [&](const std::string_view raw_url)
+            {
+                const auto normalized = normalize_mirror_base_url(raw_url);
                 if (!normalized)
+                {
+                    return;
+                }
+
+                if (seen_urls.insert(*normalized).second)
+                {
+                    mirrors.push_back(MirrorMetadata{
+                        .country_code = current_metadata.country_code,
+                        .url = *normalized,
+                        .tier = current_metadata.tier,
+                    });
+                }
+                reset_pending_entry();
+            };
+
+            for (const auto raw_line : split_lines(response->body_view()))
+            {
+                auto line = trim_view(raw_line);
+                if (line.empty())
                 {
                     continue;
                 }
-                if (seen_urls.insert(*normalized).second)
+
+                const auto commented_out = line.front() == '#';
+                auto content = line;
+                if (commented_out)
                 {
-                    mirror_urls.push_back(*normalized);
+                    while (!content.empty() && content.front() == '#')
+                    {
+                        content.remove_prefix(1);
+                    }
+                    content = trim_view(content);
+                }
+
+                if (pending_server_state != PendingServerState::kNone)
+                {
+                    if (const auto pending_url = try_extract_url(content); pending_url.has_value())
+                    {
+                        if (pending_server_state == PendingServerState::kEnabled && !commented_out)
+                        {
+                            append_mirror(*pending_url);
+                        }
+                        else
+                        {
+                            reset_pending_entry();
+                        }
+                        continue;
+                    }
+
+                    reset_pending_entry();
+                }
+
+                if (const auto server = parse_server_directive(content); server.matched)
+                {
+                    if (server.url.has_value())
+                    {
+                        if (!commented_out)
+                        {
+                            append_mirror(*server.url);
+                        }
+                        else
+                        {
+                            reset_pending_entry();
+                        }
+                    }
+                    else
+                    {
+                        pending_server_state =
+                            commented_out ? PendingServerState::kDisabled : PendingServerState::kEnabled;
+                    }
+                    continue;
+                }
+
+                if (commented_out)
+                {
+                    update_metadata_from_comment(content, current_metadata);
+                    continue;
+                }
+
+                if (const auto standalone_url = try_extract_url(content); standalone_url.has_value())
+                {
+                    append_mirror(*standalone_url);
                 }
             }
         }
@@ -270,11 +428,11 @@ namespace service::mirrors
             LOG_DEBUG() << "Failed to fetch mirror list: " << ex;
         }
 
-        return mirror_urls;
+        return mirrors;
     }
 
-    auto MirrorsDataCache::FetchRepoTimestamp(std::string_view base_url, std::string_view repo_path) const
-        -> std::optional<std::int64_t>
+    auto MirrorsDataCache::FetchRepoTimestamp(const std::string_view base_url, const std::string_view repo_path)
+    const -> std::optional<std::int64_t>
     {
         try
         {
@@ -308,38 +466,36 @@ namespace service::mirrors
     {
         MirrorsData result;
 
-        const auto mirror_urls = FetchMirrorlist();
+        const auto mirror_metadata_list = FetchMirrorlist();
 
-        std::vector<userver::engine::TaskWithResult<BaselineEntry>> baseline_tasks;
+        std::vector<userver::engine::TaskWithResult<RepoTimestampResult>> baseline_tasks;
         baseline_tasks.reserve(repo_paths_.size());
         for (const auto& repo_path : repo_paths_)
         {
             baseline_tasks.push_back(userver::engine::AsyncNoSpan([this, repo_path]
             {
-                return BaselineEntry{
+                return RepoTimestampResult{
                     .path = repo_path,
                     .timestamp = FetchRepoTimestamp(primary_mirror_url_, repo_path),
                 };
             }));
         }
 
-        result.baselines.reserve(baseline_tasks.size());
         BaselineMap baseline_map;
         baseline_map.reserve(repo_paths_.size());
         for (auto& task : baseline_tasks)
         {
             auto baseline = task.Get();
             baseline_map.try_emplace(baseline.path, baseline.timestamp);
-            result.baselines.push_back(std::move(baseline));
         }
 
-        std::vector<userver::engine::TaskWithResult<MirrorResult>> mirror_tasks;
-        mirror_tasks.reserve(mirror_urls.size());
-        for (const auto& mirror_url : mirror_urls)
+        std::vector<userver::engine::TaskWithResult<MirrorEntry>> mirror_tasks;
+        mirror_tasks.reserve(mirror_metadata_list.size());
+        for (const auto& mirror_metadata : mirror_metadata_list)
         {
-            mirror_tasks.push_back(userver::engine::AsyncNoSpan([this, mirror_url, &baseline_map]
+            mirror_tasks.push_back(userver::engine::AsyncNoSpan([this, mirror_metadata, &baseline_map]
             {
-                return BuildMirrorResult(mirror_url, baseline_map);
+                return BuildMirrorEntry(mirror_metadata, baseline_map);
             }));
         }
 
@@ -349,129 +505,95 @@ namespace service::mirrors
             result.mirrors.push_back(task.Get());
         }
 
-        std::ranges::sort(result.mirrors, [](const MirrorResult& left, const MirrorResult& right)
+        std::ranges::sort(result.mirrors, [](const MirrorEntry& left, const MirrorEntry& right)
         {
-            const auto left_rank = overall_status_rank(left.overall_status);
-            const auto right_rank = overall_status_rank(right.overall_status);
-            if (left_rank != right_rank)
+            if (left.out_of_date != right.out_of_date)
             {
-                return left_rank < right_rank;
+                return !left.out_of_date && right.out_of_date;
             }
 
-            if (!left.average_lag_seconds.has_value() && !right.average_lag_seconds.has_value())
+            if (left.tier != right.tier)
+            {
+                return left.tier < right.tier;
+            }
+
+            if (!left.last_sync.has_value() && !right.last_sync.has_value())
             {
                 return left.url < right.url;
             }
-            if (!left.average_lag_seconds.has_value())
+            if (!left.last_sync.has_value())
             {
                 return false;
             }
-            if (!right.average_lag_seconds.has_value())
+            if (!right.last_sync.has_value())
             {
                 return true;
             }
-            if (std::abs(*left.average_lag_seconds - *right.average_lag_seconds) > 0.0001)
+            if (*left.last_sync != *right.last_sync)
             {
-                return *left.average_lag_seconds < *right.average_lag_seconds;
+                return *left.last_sync > *right.last_sync;
             }
+
             return left.url < right.url;
         });
 
         return result;
     }
 
-    auto MirrorsDataCache::BuildMirrorResult(const std::string& mirror_url, const BaselineMap& baseline_map) const
-        -> MirrorResult
+    auto MirrorsDataCache::BuildMirrorEntry(const MirrorMetadata& mirror_metadata, const BaselineMap& baseline_map)
+    const -> MirrorEntry
     {
-        std::vector<userver::engine::TaskWithResult<RepoCheck>> check_tasks;
-        check_tasks.reserve(repo_paths_.size());
+        std::vector<userver::engine::TaskWithResult<RepoTimestampResult>> timestamp_tasks;
+        timestamp_tasks.reserve(repo_paths_.size());
 
         for (const auto& repo_path : repo_paths_)
         {
-            check_tasks.push_back(userver::engine::AsyncNoSpan([this, &baseline_map, mirror_url, repo_path]
+            timestamp_tasks.push_back(userver::engine::AsyncNoSpan([this, mirror_url = mirror_metadata.url, repo_path]
             {
-                const auto mirror_timestamp = FetchRepoTimestamp(mirror_url, repo_path);
-                const auto baseline_it = baseline_map.find(repo_path);
-                const auto baseline_timestamp =
-                    baseline_it == baseline_map.end() ? std::optional<std::int64_t>{} : baseline_it->second;
-
-                RepoCheck check{
+                return RepoTimestampResult{
                     .path = repo_path,
-                    .last_updated = mirror_timestamp,
-                    .status = std::string{kStatusError},
-                    .sync_lag_seconds = std::nullopt,
+                    .timestamp = FetchRepoTimestamp(mirror_url, repo_path),
                 };
-
-                if (!mirror_timestamp.has_value())
-                {
-                    return check;
-                }
-
-                if (baseline_timestamp.has_value())
-                {
-                    const auto lag = *baseline_timestamp - *mirror_timestamp;
-                    check.sync_lag_seconds = lag;
-                    check.status =
-                        lag <= sync_tolerance_.count() ? std::string{kStatusSynced} : std::string{kStatusOutOfSync};
-                    return check;
-                }
-
-                check.status = std::string{kStatusSynced};
-                return check;
             }));
         }
 
-        MirrorResult mirror{
-            .name = extract_hostname(mirror_url),
-            .url = mirror_url,
-            .checks = {},
-            .average_lag_seconds = std::nullopt,
-            .overall_status = std::string{kOverallError},
+        MirrorEntry mirror{
+            .country_code = mirror_metadata.country_code,
+            .url = mirror_metadata.url,
+            .out_of_date = false,
+            .last_sync = std::nullopt,
+            .tier = mirror_metadata.tier,
         };
-        mirror.checks.reserve(check_tasks.size());
 
-        std::size_t synced_checks = 0;
-        std::size_t error_checks = 0;
-        double positive_lag_sum = 0.0;
-        std::size_t positive_lag_count = 0;
+        bool has_missing_timestamp = false;
+        bool has_stale_timestamp = false;
 
-        for (auto& task : check_tasks)
+        for (auto& task : timestamp_tasks)
         {
-            auto check = task.Get();
-            if (check.status == kStatusSynced)
+            const auto repo_result = task.Get();
+            if (!repo_result.timestamp.has_value())
             {
-                ++synced_checks;
+                has_missing_timestamp = true;
+                continue;
             }
-            if (check.status == kStatusError)
+
+            if (!mirror.last_sync.has_value() || *repo_result.timestamp < *mirror.last_sync)
             {
-                ++error_checks;
+                mirror.last_sync = repo_result.timestamp;
             }
-            if (check.sync_lag_seconds.has_value() && *check.sync_lag_seconds > 0)
+
+            if (const auto baseline_it = baseline_map.find(repo_result.path); baseline_it != baseline_map.end())
             {
-                positive_lag_sum += static_cast<double>(*check.sync_lag_seconds);
-                ++positive_lag_count;
+                if (const auto& baseline_timestamp = baseline_it->second;
+                    baseline_timestamp.has_value() &&
+                    (*baseline_timestamp - *repo_result.timestamp) > sync_tolerance_.count())
+                {
+                    has_stale_timestamp = true;
+                }
             }
-            mirror.checks.push_back(std::move(check));
         }
 
-        const auto total_checks = mirror.checks.size();
-        if (const auto valid_checks = total_checks - error_checks; valid_checks == 0)
-        {
-            mirror.overall_status = std::string{kOverallError};
-        }
-        else if (synced_checks == total_checks)
-        {
-            mirror.overall_status = std::string{kOverallHealthy};
-        }
-        else
-        {
-            mirror.overall_status = synced_checks == 0 ? std::string{kOverallOutOfSync} : std::string{kOverallPartial};
-        }
-
-        if (positive_lag_count > 0)
-        {
-            mirror.average_lag_seconds = positive_lag_sum / static_cast<double>(positive_lag_count);
-        }
+        mirror.out_of_date = has_missing_timestamp || has_stale_timestamp || !mirror.last_sync.has_value();
 
         return mirror;
     }

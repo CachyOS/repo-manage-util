@@ -200,19 +200,19 @@ paths:
                       $ref: "#/components/schemas/BriefPackage"
         "404":
           description: The requested package base was not found.
-  /mirrors/data:
+  /mirrors:
     get:
-      summary: Get mirror health data
+      summary: Get mirror metadata
       description: |
-        Returns baseline timestamps for tracked repository paths and the computed
-        health state of each mirror.
+        Returns mirror metadata in an Arch mirrorlist compatible shape so clients
+        can rank mirrors by locality, speed, and freshness.
       responses:
         "200":
-          description: Mirror health data.
+          description: Mirror metadata.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MirrorsDataResponse"
+                $ref: "#/components/schemas/MirrorsResponse"
 
 components:
   schemas:
@@ -348,56 +348,33 @@ components:
         updated:
           type: integer
           format: int64
-    MirrorBaseline:
+    Mirror:
       type: object
       properties:
-        path:
+        country_code:
           type: string
-        timestamp:
-          type: integer
-          format: int64
-          nullable: true
-    MirrorRepoCheck:
-      type: object
-      properties:
-        path:
-          type: string
-        lastUpdated:
-          type: integer
-          format: int64
-          nullable: true
-        status:
-          type: string
-          enum: [synced, out-of-sync, error]
-        syncLagSeconds:
-          type: integer
-          format: int64
-          nullable: true
-    MirrorResult:
-      type: object
-      properties:
-        name:
-          type: string
+          description: Country code from mirrorlist metadata.
         url:
           type: string
-        checks:
-          type: array
-          items:
-            $ref: "#/components/schemas/MirrorRepoCheck"
-        averageLagSeconds:
-          type: number
-          nullable: true
-        overallStatus:
+          description: Base mirror URL without the /repo/$arch/$repo suffix.
+        out_of_date:
+          type: boolean
+          description: Whether the mirror is stale or missing tracked repo data.
+        last_sync:
           type: string
-          enum: [healthy, partial, out-of-sync, error]
-    MirrorsDataResponse:
+          format: date-time
+          nullable: true
+          description: Oldest successful tracked repo sync represented as UTC.
+        tier:
+          type: integer
+          enum: [1, 2]
+          description: Tier 1 mirrors pull directly from upstream, tier 2 mirrors do not.
+      required: [country_code, url, out_of_date, last_sync, tier]
+    MirrorsResponse:
       type: object
       properties:
-        baselines:
-          type: array
-          items:
-            $ref: "#/components/schemas/MirrorBaseline"
         mirrors:
           type: array
           items:
-            $ref: "#/components/schemas/MirrorResult"
+            $ref: "#/components/schemas/Mirror"
+      required: [mirrors]

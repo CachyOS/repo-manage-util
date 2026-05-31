@@ -3,6 +3,8 @@
 #include "http_utils.hpp"
 #include "mirrors_data_cache.hpp"
 
+#include <fmt/chrono.h>
+
 #include <optional>
 
 #ifdef __clang__
@@ -33,16 +35,15 @@
 
 namespace
 {
-    template <typename T>
-    void set_optional_field(
+    void set_optional_string_field(
         userver::formats::json::ValueBuilder& builder,
         const std::string_view key,
-        const std::optional<T>& value)
+        const std::optional<std::int64_t>& value)
     {
         const auto key_name = std::string{key};
-        if (value)
+        if (value.has_value())
         {
-            builder[key_name] = *value;
+            builder[key_name] = fmt::format("{:%Y-%m-%dT%H:%M:%SZ}", fmt::gmtime(*value));
             return;
         }
 
@@ -71,35 +72,16 @@ namespace service::mirrors
         const auto mirrors_data = cache_.Get();
 
         auto response = userver::formats::json::ValueBuilder(kObject);
-        response["baselines"] = userver::formats::json::ValueBuilder(kArray);
         response["mirrors"] = userver::formats::json::ValueBuilder(kArray);
-
-        for (const auto& baseline : mirrors_data->baselines)
-        {
-            auto baseline_json = userver::formats::json::ValueBuilder(kObject);
-            baseline_json["path"] = baseline.path;
-            set_optional_field(baseline_json, "timestamp", baseline.timestamp);
-            response["baselines"].PushBack(std::move(baseline_json));
-        }
 
         for (const auto& mirror : mirrors_data->mirrors)
         {
             auto mirror_json = userver::formats::json::ValueBuilder(kObject);
-            mirror_json["name"] = mirror.name;
+            mirror_json["country_code"] = mirror.country_code;
             mirror_json["url"] = mirror.url;
-            mirror_json["checks"] = userver::formats::json::ValueBuilder(kArray);
-            set_optional_field(mirror_json, "averageLagSeconds", mirror.average_lag_seconds);
-            mirror_json["overallStatus"] = mirror.overall_status;
-
-            for (const auto& check : mirror.checks)
-            {
-                auto check_json = userver::formats::json::ValueBuilder(kObject);
-                check_json["path"] = check.path;
-                set_optional_field(check_json, "lastUpdated", check.last_updated);
-                check_json["status"] = check.status;
-                set_optional_field(check_json, "syncLagSeconds", check.sync_lag_seconds);
-                mirror_json["checks"].PushBack(std::move(check_json));
-            }
+            mirror_json["out_of_date"] = mirror.out_of_date;
+            set_optional_string_field(mirror_json, "last_sync", mirror.last_sync);
+            mirror_json["tier"] = mirror.tier;
 
             response["mirrors"].PushBack(std::move(mirror_json));
         }

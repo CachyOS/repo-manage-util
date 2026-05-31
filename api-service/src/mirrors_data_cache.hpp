@@ -34,33 +34,18 @@
 
 namespace service::mirrors
 {
-    struct BaselineEntry
+    struct MirrorEntry
     {
-        std::string path;
-        std::optional<std::int64_t> timestamp;
-    };
-
-    struct RepoCheck
-    {
-        std::string path;
-        std::optional<std::int64_t> last_updated;
-        std::string status;
-        std::optional<std::int64_t> sync_lag_seconds;
-    };
-
-    struct MirrorResult
-    {
-        std::string name;
+        std::string country_code;
         std::string url;
-        std::vector<RepoCheck> checks;
-        std::optional<double> average_lag_seconds;
-        std::string overall_status;
+        bool out_of_date;
+        std::optional<std::int64_t> last_sync;
+        int tier;
     };
 
     struct MirrorsData
     {
-        std::vector<BaselineEntry> baselines;
-        std::vector<MirrorResult> mirrors;
+        std::vector<MirrorEntry> mirrors;
     };
 
     class MirrorsDataCache final : public userver::components::CachingComponentBase<MirrorsData>
@@ -81,15 +66,22 @@ namespace service::mirrors
         static userver::yaml_config::Schema GetStaticConfigSchema();
 
     private:
+        struct MirrorMetadata
+        {
+            std::string country_code;
+            std::string url;
+            int tier;
+        };
+
         using BaselineMap = std::unordered_map<std::string, std::optional<std::int64_t>>;
 
-        [[nodiscard]] auto FetchMirrorlist() const -> std::vector<std::string>;
+        [[nodiscard]] auto FetchMirrorlist() const -> std::vector<MirrorMetadata>;
         [[nodiscard]] auto FetchRepoTimestamp(std::string_view base_url, std::string_view repo_path) const
             -> std::optional<std::int64_t>;
         [[nodiscard]] auto ComputeMirrorsData() const -> MirrorsData;
-        [[nodiscard]] auto BuildMirrorResult(
-            const std::string& mirror_url,
-            const BaselineMap& baseline_map) const -> MirrorResult;
+        [[nodiscard]] auto BuildMirrorEntry(
+            const MirrorMetadata& mirror_metadata,
+            const BaselineMap& baseline_map) const -> MirrorEntry;
 
         userver::clients::http::Client& http_client_;
         std::string mirrorlist_url_;

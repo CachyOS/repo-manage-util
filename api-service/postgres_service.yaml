@@ -159,7 +159,7 @@ components_manager:
       method: GET
 
     handler-mirrors-data:
-      path: /api/v1/mirrors/data
+      path: /api/v1/mirrors
       task_processor: main-task-processor
       method: GET
     # /// [our API endpoints]
@@ -167,7 +167,7 @@ components_manager:
     mirrors-data-cache:
       update-interval: 5m
       first-update-fail-ok: true
-      mirrorlist-url: https://build.cachyos.org/cachyos-mirrorlist
+      mirrorlist-url: https://raw.githubusercontent.com/CachyOS/CachyOS-PKGBUILDS/refs/heads/master/cachyos-mirrorlist/cachyos-mirrorlist
       primary-mirror-url: https://build.cachyos.org/repo
       request-timeout-ms: 2000
       sync-tolerance-seconds: 3600

@@ -35,7 +35,7 @@ def main():
         pathlib.Path(SRC_PATH + "/third_party").mkdir(parents=True, exist_ok=True)
 
     if not os.path.exists(SRC_PATH + "/third_party/postgresql"):
-        res = subprocess.run(["git", "clone", "--depth", "1", "--branch", "REL_18_3", "https://github.com/postgres/postgres.git", SRC_PATH + "/third_party/postgresql"])
+        res = subprocess.run(["git", "clone", "--depth", "1", "--branch", "REL_18_4", "https://github.com/postgres/postgres.git", SRC_PATH + "/third_party/postgresql"])
         if res.returncode:
             print("Failed to clone repository")
             exit(1)

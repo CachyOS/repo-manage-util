@@ -49,7 +49,7 @@ index 903c61f1d..4725218b5 100644
  )
  
 diff --git a/cmake/UserverSetupEnvironment.cmake b/cmake/UserverSetupEnvironment.cmake
-index f2bfb54dd..31a30fda7 100644
+index 4e1e07da0..458e6d130 100644
 --- a/cmake/UserverSetupEnvironment.cmake
 +++ b/cmake/UserverSetupEnvironment.cmake
 @@ -18,14 +18,6 @@ function(_userver_setup_environment_validate_impl)
@@ -177,7 +177,7 @@ index c27f74b28..7c68a19b6 100644
  if("addr" IN_LIST SANITIZERS_LIST)
      target_compile_definitions(${PROJECT_NAME} PUBLIC "BOOST_USE_ASAN")
 diff --git a/universal/CMakeLists.txt b/universal/CMakeLists.txt
-index 213165c08..58243c866 100644
+index c14bf72c1..f31670553 100644
 --- a/universal/CMakeLists.txt
 +++ b/universal/CMakeLists.txt
 @@ -9,7 +9,7 @@ if(TARGET userver-core)
@@ -189,7 +189,7 @@ index 213165c08..58243c866 100644
  
  file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-@@ -141,7 +141,7 @@ if(NOT USERVER_NO_WERROR)
+@@ -134,7 +134,7 @@ if(NOT USERVER_NO_WERROR)
      target_compile_options(userver-internal-compile-options INTERFACE "-Werror")
  endif()
  
@@ -207,7 +207,7 @@ index 213165c08..58243c866 100644
      PRIVATE Boost::filesystem Boost::program_options OpenSSL::SSL OpenSSL::Crypto
  )
  if(TARGET Boost::algorithm)
-@@ -351,10 +351,10 @@ if(USERVER_BUILD_TESTS)
+@@ -349,10 +349,10 @@ if(USERVER_BUILD_TESTS)
          PUBLIC ${PROJECT_NAME}
      )
      add_test(
@@ -221,4 +221,42 @@ index 213165c08..58243c866 100644
 +    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
      )
  endif()
+
+From ab21f07194dc40a9ca3550f3e9814f8da6c4965d Mon Sep 17 00:00:00 2001
+From: Emil Goncharov <emikmanga@gmail.com>
+Date: Sat, 6 Jun 2026 18:57:59 -0400
+Subject: [PATCH] fix universal: fix random generator initialization in C++23
+
+---
+ universal/src/utils/rand.cpp | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/universal/src/utils/rand.cpp b/universal/src/utils/rand.cpp
+index 3a5850004aaf..49eac6b454c6 100644
+--- a/universal/src/utils/rand.cpp
++++ b/universal/src/utils/rand.cpp
+@@ -8,11 +8,6 @@ namespace utils {
+ 
+ namespace {
+ 
+-template <typename T>
+-auto& AsLvalue(T&& rvalue) noexcept {
+-    return rvalue;
+-}
+-
+ compiler::ThreadLocal local_random_impl = [] { return impl::RandomImpl{}; };
+ 
+ }  // namespace
+@@ -34,8 +29,10 @@ std::seed_seq MakeSeedSeq() {
+ }
+ 
+ RandomImpl::RandomImpl()
+-    : gen_(AsLvalue(impl::MakeSeedSeq()))
+-{}
++    : gen_([] {
++          auto seed_seq = MakeSeedSeq();
++          return decltype(gen_){seed_seq};
++      }()) {}
+ 
+ compiler::ThreadLocalScope<RandomImpl> UseLocalRandomImpl() { return local_random_impl.Use(); }
  

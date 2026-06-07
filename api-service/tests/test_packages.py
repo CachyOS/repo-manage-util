@@ -82,12 +82,12 @@ async def test_split_packages(service_client):
     response = await get_split_package(service_client, 'test1', 'godot')
     assert response.status == 200
     assert len(response.json()) == 2
-    assert [pkg['pkg_name'] for pkg in response.json()] == ['godot-mono', 'godot']
+    assert [pkg['pkg_name'] for pkg in response.json()] == ['godot', 'godot-mono']
 
     response = await get_split_package(service_client, 'test1', 'uv')
     assert response.status == 200
     assert len(response.json()) == 3
-    assert [pkg['pkg_name'] for pkg in response.json()] == ['python-uv-build', 'uv', 'python-uv']
+    assert [pkg['pkg_name'] for pkg in response.json()] == ['python-uv', 'python-uv-build', 'uv']
 
 @pytest.mark.pgsql('init_db', files=['initial_data.sql'])
 async def test_suggest_packages(service_client):

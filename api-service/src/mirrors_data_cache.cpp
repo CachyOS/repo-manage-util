@@ -1,15 +1,17 @@
 #include "mirrors_data_cache.hpp"
 
 #include <algorithm>
-#include <charconv>
-#include <cctype>
+#include <chrono>
 #include <cstdint>
+#include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
-#include <unordered_set>
+#include <tuple>
 #include <utility>
+#include <vector>
 
-#ifdef __clang__
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #pragma clang diagnostic ignored "-Wsign-conversion"
@@ -19,7 +21,7 @@
 #pragma clang diagnostic ignored "-Wshadow"
 #pragma clang diagnostic ignored "-Wnon-virtual-dtor"
 #pragma clang diagnostic ignored "-Wold-style-cast"
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnull-dereference"
 #pragma GCC diagnostic ignored "-Wuseless-cast"
@@ -29,578 +31,202 @@
 #include <userver/clients/http/component.hpp>
 #include <userver/clients/http/response.hpp>
 #include <userver/engine/async.hpp>
+#include <userver/engine/get_all.hpp>
 #include <userver/engine/task/task_with_result.hpp>
+#include <userver/formats/json/value_builder.hpp>
+#include <userver/formats/serialize/common_containers.hpp>
+#include <userver/http/url.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/utils/datetime_light.hpp>
+#include <userver/utils/from_string.hpp>
+#include <userver/utils/text_light.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 
-#ifdef __clang__
+#if defined(__clang__)
 #pragma clang diagnostic pop
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 
-namespace
-{
-    enum class PendingServerState : std::uint8_t
-    {
-        kNone,
-        kEnabled,
-        kDisabled,
-    };
+namespace {
 
-    struct PendingMirrorMetadata
-    {
-        std::string country_code;
-        int tier{2};
-    };
+namespace text = userver::utils::text;
 
-    struct ParsedServerDirective
-    {
-        bool matched{false};
-        std::optional<std::string_view> url;
-    };
+inline constexpr std::string_view kLastUpdateEndpoint = "lastupdate";
 
-    struct RepoTimestampResult
-    {
-        std::string path;
-        std::optional<std::int64_t> timestamp;
-    };
-
-    constexpr auto trim_view(std::string_view text) noexcept -> std::string_view
-    {
-        while (!text.empty() && std::isspace(static_cast<unsigned char>(text.front())) != 0)
-        {
-            text.remove_prefix(1);
-        }
-        while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back())) != 0)
-        {
-            text.remove_suffix(1);
-        }
-        return text;
-    }
-
-    auto split_lines(std::string_view text) -> std::vector<std::string_view>
-    {
-        std::vector<std::string_view> lines;
-        while (!text.empty())
-        {
-            const auto newline_pos = text.find('\n');
-            if (newline_pos == std::string_view::npos)
-            {
-                lines.push_back(text);
-                break;
-            }
-
-            lines.push_back(text.substr(0, newline_pos));
-            text.remove_prefix(newline_pos + 1);
-        }
-        return lines;
-    }
-
-    auto parse_integer(std::string_view text) noexcept -> std::optional<std::int64_t>
-    {
-        text = trim_view(text);
-        if (text.empty())
-        {
-            return std::nullopt;
-        }
-
-        std::int64_t value{};
-        const auto* begin = text.data();
-        const auto* end = begin + text.size();
-        if (const auto result = std::from_chars(begin, end, value);
-            result.ec != std::errc{} || result.ptr != end)
-        {
-            return std::nullopt;
-        }
-
-        return value;
-    }
-
-    auto normalize_mirror_base_url(const std::string_view text) -> std::optional<std::string>
-    {
-        auto normalized = std::string{trim_view(text)};
-        if (normalized.empty())
-        {
-            return std::nullopt;
-        }
-
-        if (normalized.front() == '=')
-        {
-            normalized.erase(0, 1);
-            normalized = std::string{trim_view(normalized)};
-        }
-
-        if (!normalized.starts_with("https://") && !normalized.starts_with("http://"))
-        {
-            return std::nullopt;
-        }
-
-        for (const auto suffix : {
-                 std::string_view{"/repo/$arch/$repo"},
-                 std::string_view{"/$repo/$arch"},
-                 std::string_view{"/$arch/$repo"},
-                 std::string_view{"/$repo"},
-                 std::string_view{"/$arch"},
-             })
-        {
-            if (normalized.ends_with(suffix))
-            {
-                normalized.erase(normalized.size() - suffix.size());
-                break;
-            }
-        }
-
-        while (!normalized.empty() && normalized.back() == '/')
-        {
-            normalized.pop_back();
-        }
-
-        normalized.push_back('/');
-
-        return normalized;
-    }
-
-    auto parse_value_after_key(const std::string_view text, const std::string_view key)
-        -> std::optional<std::string_view>
-    {
-        const auto key_pos = text.find(key);
-        if (key_pos == std::string_view::npos)
-        {
-            return std::nullopt;
-        }
-
-        auto value = trim_view(text.substr(key_pos + key.size()));
-        if (value.empty())
-        {
-            return std::nullopt;
-        }
-
-        std::size_t token_size = 0;
-        while (token_size < value.size() && std::isspace(static_cast<unsigned char>(value[token_size])) == 0)
-        {
-            ++token_size;
-        }
-
-        value = value.substr(0, token_size);
-        while (!value.empty() && std::ispunct(static_cast<unsigned char>(value.back())) != 0 && value.back() != '-')
-        {
-            value.remove_suffix(1);
-        }
-
-        if (value.empty())
-        {
-            return std::nullopt;
-        }
-
-        return value;
-    }
-
-    void update_metadata_from_comment(const std::string_view comment, PendingMirrorMetadata& metadata)
-    {
-        if (const auto tier_value = parse_value_after_key(comment, "tier="); tier_value.has_value())
-        {
-            if (const auto parsed_tier = parse_integer(*tier_value);
-                parsed_tier.has_value() && (*parsed_tier == 1 || *parsed_tier == 2))
-            {
-                metadata.tier = static_cast<int>(*parsed_tier);
-            }
-        }
-
-        if (const auto country_code_value = parse_value_after_key(comment, "code="); country_code_value.has_value())
-        {
-            metadata.country_code.clear();
-            metadata.country_code.reserve(country_code_value->size());
-            for (const auto symbol : *country_code_value)
-            {
-                metadata.country_code.push_back(
-                    static_cast<char>(std::toupper(static_cast<unsigned char>(symbol))));
-            }
-        }
-    }
-
-    auto try_extract_url(const std::string_view text) -> std::optional<std::string_view>
-    {
-        auto candidate = trim_view(text);
-        if (candidate.empty())
-        {
-            return std::nullopt;
-        }
-
-        if (candidate.front() == '=')
-        {
-            candidate.remove_prefix(1);
-            candidate = trim_view(candidate);
-        }
-
-        if (!candidate.starts_with("https://") && !candidate.starts_with("http://"))
-        {
-            return std::nullopt;
-        }
-
-        return candidate;
-    }
-
-    auto parse_server_directive(const std::string_view text) -> ParsedServerDirective
-    {
-        auto candidate = trim_view(text);
-        if (!candidate.starts_with("Server"))
-        {
-            return {};
-        }
-
-        candidate.remove_prefix(std::string_view{"Server"}.size());
-        candidate = trim_view(candidate);
-        if (candidate.empty())
-        {
-            return {.matched = true, .url = std::nullopt};
-        }
-
-        if (candidate.front() == '=')
-        {
-            candidate.remove_prefix(1);
-            candidate = trim_view(candidate);
-        }
-
-        if (candidate.empty())
-        {
-            return {.matched = true, .url = std::nullopt};
-        }
-
-        return {.matched = true, .url = candidate};
-    }
-
-    auto join_timestamp_url(const std::string_view base_url, const std::string_view repo_path) -> std::string
-    {
-        std::string url{base_url};
-        if (!url.ends_with('/'))
-        {
-            url.push_back('/');
-        }
-        url.append(repo_path);
+// Builds `<base_url>/<repo_path>/lastupdate`.
+auto join_timestamp_url(std::string_view base_url, std::string_view repo_path) -> std::string {
+    std::string url{base_url};
+    if (url.empty() || url.back() != '/') {
         url.push_back('/');
-        url.append("lastupdate");
-        return url;
-    }
-} // namespace
-
-namespace service::mirrors
-{
-    MirrorsDataCache::MirrorsDataCache(
-        const userver::components::ComponentConfig& config,
-        const userver::components::ComponentContext& context)
-        : CachingComponentBase(config, context),
-          http_client_(context.FindComponent<userver::components::HttpClient>().GetHttpClient()),
-          mirrorlist_url_(config["mirrorlist-url"].As<std::string>()),
-          primary_mirror_url_(config["primary-mirror-url"].As<std::string>()),
-          repo_paths_(config["repo-paths"].As<std::vector<std::string>>()),
-          request_timeout_(std::chrono::milliseconds{config["request-timeout-ms"].As<int>()}),
-          sync_tolerance_(std::chrono::seconds{config["sync-tolerance-seconds"].As<int>()})
-    {
     }
 
-    void MirrorsDataCache::Update(
-        userver::cache::UpdateType,
-        const std::chrono::system_clock::time_point&,
-        const std::chrono::system_clock::time_point&,
-        userver::cache::UpdateStatisticsScope& stats_scope)
-    {
-        auto mirrors_data = ComputeMirrorsData();
-        const auto documents_count = mirrors_data.mirrors.size();
-        Set(std::move(mirrors_data));
-        stats_scope.Finish(documents_count);
-    }
+    const auto segments = text::SplitIntoStringViewVector(repo_path, "/")
+        | std::ranges::views::transform(userver::http::UrlEncodePathSegment)
+        | std::ranges::to<std::vector<std::string>>();
+    url.append(text::Join(segments, "/"));
+    url.push_back('/');
+    url.append(kLastUpdateEndpoint);
+    return url;
+}
 
-    auto MirrorsDataCache::FetchMirrorlist() const -> std::vector<MirrorMetadata>
-    {
-        std::vector<MirrorMetadata> mirrors;
+}  // namespace
 
-        try
-        {
-            const auto response = http_client_.CreateRequest().get(mirrorlist_url_).timeout(request_timeout_).perform();
-            if (!response->IsOk())
-            {
-                LOG_DEBUG() << "Mirror list request failed with status " << response->status_code();
-                return mirrors;
-            }
+namespace service::mirrors {
 
-            std::unordered_set<std::string> seen_urls;
-            PendingMirrorMetadata current_metadata;
-            auto pending_server_state = PendingServerState::kNone;
+MirrorsDataCache::MirrorsDataCache(
+    const userver::components::ComponentConfig& config,
+    const userver::components::ComponentContext& context)
+  : CachingComponentBase(config, context),
+    http_client_(context.FindComponent<userver::components::HttpClient>().GetHttpClient()),
+    mirrorlist_url_(config["mirrorlist-url"].As<std::string>()),
+    primary_mirror_url_(config["primary-mirror-url"].As<std::string>()),
+    repo_paths_(config["repo-paths"].As<std::vector<std::string>>()),
+    request_timeout_(config["request-timeout"].As<std::chrono::milliseconds>()),
+    sync_tolerance_(config["sync-tolerance"].As<std::chrono::seconds>()) { }
 
-            const auto reset_pending_entry = [&]()
-            {
-                current_metadata = PendingMirrorMetadata{};
-                pending_server_state = PendingServerState::kNone;
-            };
+void MirrorsDataCache::Update(
+    userver::cache::UpdateType,
+    const std::chrono::system_clock::time_point&,
+    const std::chrono::system_clock::time_point&,
+    userver::cache::UpdateStatisticsScope& stats_scope) {
+    auto mirrors_data          = ComputeMirrorsData();
+    const auto documents_count = mirrors_data.mirrors.size();
+    Set(std::move(mirrors_data));
+    stats_scope.Finish(documents_count);
+}
 
-            const auto append_mirror = [&](const std::string_view raw_url)
-            {
-                const auto normalized = normalize_mirror_base_url(raw_url);
-                if (!normalized)
-                {
-                    return;
-                }
+std::vector<MirrorMetadata> MirrorsDataCache::FetchMirrorlist() const {
+    // on failure userver keeps the last good cache data
+    const auto response = http_client_.CreateRequest()
+                              .get(mirrorlist_url_)
+                              .retry(2)
+                              .timeout(request_timeout_)
+                              .perform();
+    response->raise_for_status();
+    return ParseMirrorlist(response->body_view());
+}
 
-                if (seen_urls.insert(*normalized).second)
-                {
-                    mirrors.push_back(MirrorMetadata{
-                        .country_code = current_metadata.country_code,
-                        .url = *normalized,
-                        .tier = current_metadata.tier,
-                    });
-                }
-                reset_pending_entry();
-            };
-
-            for (const auto raw_line : split_lines(response->body_view()))
-            {
-                auto line = trim_view(raw_line);
-                if (line.empty())
-                {
-                    continue;
-                }
-
-                const auto commented_out = line.front() == '#';
-                auto content = line;
-                if (commented_out)
-                {
-                    while (!content.empty() && content.front() == '#')
-                    {
-                        content.remove_prefix(1);
-                    }
-                    content = trim_view(content);
-                }
-
-                if (pending_server_state != PendingServerState::kNone)
-                {
-                    if (const auto pending_url = try_extract_url(content); pending_url.has_value())
-                    {
-                        if (pending_server_state == PendingServerState::kEnabled && !commented_out)
-                        {
-                            append_mirror(*pending_url);
-                        }
-                        else
-                        {
-                            reset_pending_entry();
-                        }
-                        continue;
-                    }
-
-                    reset_pending_entry();
-                }
-
-                if (const auto server = parse_server_directive(content); server.matched)
-                {
-                    if (server.url.has_value())
-                    {
-                        if (!commented_out)
-                        {
-                            append_mirror(*server.url);
-                        }
-                        else
-                        {
-                            reset_pending_entry();
-                        }
-                    }
-                    else
-                    {
-                        pending_server_state =
-                            commented_out ? PendingServerState::kDisabled : PendingServerState::kEnabled;
-                    }
-                    continue;
-                }
-
-                if (commented_out)
-                {
-                    update_metadata_from_comment(content, current_metadata);
-                    continue;
-                }
-
-                if (const auto standalone_url = try_extract_url(content); standalone_url.has_value())
-                {
-                    append_mirror(*standalone_url);
-                }
-            }
-        }
-        catch (const std::exception& ex)
-        {
-            LOG_DEBUG() << "Failed to fetch mirror list: " << ex;
-        }
-
-        return mirrors;
-    }
-
-    auto MirrorsDataCache::FetchRepoTimestamp(const std::string_view base_url, const std::string_view repo_path)
-    const -> std::optional<std::int64_t>
-    {
-        try
-        {
-            const auto response =
-                http_client_.CreateRequest()
-                            .get(join_timestamp_url(base_url, repo_path))
-                            .timeout(request_timeout_)
-                            .perform();
-            if (!response->IsOk())
-            {
-                return std::nullopt;
-            }
-
-            const auto parsed_timestamp = parse_integer(response->body_view());
-            if (!parsed_timestamp.has_value())
-            {
-                return std::nullopt;
-            }
-
-            return *parsed_timestamp / 1000;
-        }
-        catch (const std::exception& ex)
-        {
-            LOG_DEBUG() << "Failed to fetch repo timestamp for '" << repo_path << "' from '" << base_url
-                << "': " << ex;
+std::optional<MirrorsDataCache::Timestamp> MirrorsDataCache::FetchRepoTimestamp(
+    std::string_view base_url, std::string_view repo_path) const {
+    try {
+        const auto response = http_client_.CreateRequest()
+                                  .get(join_timestamp_url(base_url, repo_path))
+                                  .timeout(request_timeout_)
+                                  .perform();
+        if (!response->IsOk()) {
             return std::nullopt;
         }
+
+        const auto parsed = userver::utils::FromStringNoThrow<std::int64_t>(
+            text::TrimView(response->body_view()));
+        if (!parsed.has_value()) {
+            return std::nullopt;
+        }
+        return Timestamp{std::chrono::milliseconds{parsed.value()}};
+    } catch (const std::exception& ex) {
+        LOG_DEBUG("Failed to fetch repo timestamp for '{}' from '{}': {}",
+            repo_path, base_url, ex);
+        return std::nullopt;
+    }
+}
+
+MirrorsData MirrorsDataCache::ComputeMirrorsData() const {
+    const auto mirror_metadata_list = FetchMirrorlist();
+
+    auto baseline_tasks = repo_paths_ | std::ranges::views::transform([this](const auto& repo_path) {
+        return userver::engine::AsyncNoTracing(
+            [this, &repo_path] { return FetchRepoTimestamp(primary_mirror_url_, repo_path); });
+    }) | std::ranges::to<std::vector>();
+
+    const auto baseline_timestamps = userver::engine::GetAll(baseline_tasks);
+    BaselineMap baseline_map;
+    baseline_map.reserve(repo_paths_.size());
+    for (const auto& [repo_path, timestamp] : std::ranges::views::zip(repo_paths_, baseline_timestamps)) {
+        baseline_map.try_emplace(repo_path, timestamp);
     }
 
-    auto MirrorsDataCache::ComputeMirrorsData() const -> MirrorsData
-    {
-        MirrorsData result;
-
-        const auto mirror_metadata_list = FetchMirrorlist();
-
-        std::vector<userver::engine::TaskWithResult<RepoTimestampResult>> baseline_tasks;
-        baseline_tasks.reserve(repo_paths_.size());
-        for (const auto& repo_path : repo_paths_)
-        {
-            baseline_tasks.push_back(userver::engine::AsyncNoSpan([this, repo_path]
-            {
-                return RepoTimestampResult{
-                    .path = repo_path,
-                    .timestamp = FetchRepoTimestamp(primary_mirror_url_, repo_path),
-                };
-            }));
-        }
-
-        BaselineMap baseline_map;
-        baseline_map.reserve(repo_paths_.size());
-        for (auto& task : baseline_tasks)
-        {
-            auto baseline = task.Get();
-            baseline_map.try_emplace(baseline.path, baseline.timestamp);
-        }
-
-        std::vector<userver::engine::TaskWithResult<MirrorEntry>> mirror_tasks;
-        mirror_tasks.reserve(mirror_metadata_list.size());
-        for (const auto& mirror_metadata : mirror_metadata_list)
-        {
-            mirror_tasks.push_back(userver::engine::AsyncNoSpan([this, mirror_metadata, &baseline_map]
-            {
+    auto mirror_tasks = mirror_metadata_list | std::ranges::views::transform([this, &baseline_map](const auto& mirror_metadata) {
+        return userver::engine::AsyncNoTracing(
+            [this, &mirror_metadata, &baseline_map] {
                 return BuildMirrorEntry(mirror_metadata, baseline_map);
-            }));
+            });
+    }) | std::ranges::to<std::vector>();
+
+    MirrorsData result{.mirrors = userver::engine::GetAll(mirror_tasks)};
+
+    const auto sort_key = [](const MirrorEntry& m) {
+        return std::tuple(
+            m.out_of_date,
+            m.tier,
+            !m.last_sync.has_value(),
+            -m.last_sync.value_or(Timestamp{}).time_since_epoch().count(),
+            std::string_view{m.url});
+    };
+    std::ranges::sort(result.mirrors, std::less<>{}, sort_key);
+
+    return result;
+}
+
+MirrorEntry MirrorsDataCache::BuildMirrorEntry(
+    const MirrorMetadata& mirror_metadata, const BaselineMap& baseline_map) const {
+    auto timestamp_tasks = repo_paths_ | std::ranges::views::transform([this, &mirror_metadata](const auto& repo_path) {
+        return userver::engine::AsyncNoTracing(
+            [this, &mirror_metadata, &repo_path] {
+                return FetchRepoTimestamp(mirror_metadata.url, repo_path);
+            });
+    }) | std::ranges::to<std::vector>();
+
+    MirrorEntry mirror{
+        .country_code = mirror_metadata.country_code,
+        .url          = mirror_metadata.url,
+        .out_of_date  = false,
+        .last_sync    = std::nullopt,
+        .tier         = mirror_metadata.tier,
+    };
+
+    const auto timestamps = userver::engine::GetAll(timestamp_tasks);
+    for (const auto& [repo_path, timestamp] : std::ranges::views::zip(repo_paths_, timestamps)) {
+        if (!timestamp.has_value()) {
+            mirror.out_of_date = true;
+            continue;
         }
 
-        result.mirrors.reserve(mirror_tasks.size());
-        for (auto& task : mirror_tasks)
-        {
-            result.mirrors.push_back(task.Get());
+        if (!mirror.last_sync.has_value() || *timestamp < *mirror.last_sync) {
+            mirror.last_sync = timestamp;
         }
 
-        std::ranges::sort(result.mirrors, [](const MirrorEntry& left, const MirrorEntry& right)
-        {
-            if (left.out_of_date != right.out_of_date)
-            {
-                return !left.out_of_date && right.out_of_date;
-            }
-
-            if (left.tier != right.tier)
-            {
-                return left.tier < right.tier;
-            }
-
-            if (!left.last_sync.has_value() && !right.last_sync.has_value())
-            {
-                return left.url < right.url;
-            }
-            if (!left.last_sync.has_value())
-            {
-                return false;
-            }
-            if (!right.last_sync.has_value())
-            {
-                return true;
-            }
-            if (*left.last_sync != *right.last_sync)
-            {
-                return *left.last_sync > *right.last_sync;
-            }
-
-            return left.url < right.url;
-        });
-
-        return result;
+        const auto baseline_it = baseline_map.find(repo_path);
+        if (baseline_it != baseline_map.end() && baseline_it->second.has_value()
+            && (*baseline_it->second - *timestamp) > sync_tolerance_) {
+            mirror.out_of_date = true;
+        }
     }
 
-    auto MirrorsDataCache::BuildMirrorEntry(const MirrorMetadata& mirror_metadata, const BaselineMap& baseline_map)
-    const -> MirrorEntry
-    {
-        std::vector<userver::engine::TaskWithResult<RepoTimestampResult>> timestamp_tasks;
-        timestamp_tasks.reserve(repo_paths_.size());
-
-        for (const auto& repo_path : repo_paths_)
-        {
-            timestamp_tasks.push_back(userver::engine::AsyncNoSpan([this, mirror_url = mirror_metadata.url, repo_path]
-            {
-                return RepoTimestampResult{
-                    .path = repo_path,
-                    .timestamp = FetchRepoTimestamp(mirror_url, repo_path),
-                };
-            }));
-        }
-
-        MirrorEntry mirror{
-            .country_code = mirror_metadata.country_code,
-            .url = mirror_metadata.url,
-            .out_of_date = false,
-            .last_sync = std::nullopt,
-            .tier = mirror_metadata.tier,
-        };
-
-        bool has_missing_timestamp = false;
-        bool has_stale_timestamp = false;
-
-        for (auto& task : timestamp_tasks)
-        {
-            const auto repo_result = task.Get();
-            if (!repo_result.timestamp.has_value())
-            {
-                has_missing_timestamp = true;
-                continue;
-            }
-
-            if (!mirror.last_sync.has_value() || *repo_result.timestamp < *mirror.last_sync)
-            {
-                mirror.last_sync = repo_result.timestamp;
-            }
-
-            if (const auto baseline_it = baseline_map.find(repo_result.path); baseline_it != baseline_map.end())
-            {
-                if (const auto& baseline_timestamp = baseline_it->second;
-                    baseline_timestamp.has_value() &&
-                    (*baseline_timestamp - *repo_result.timestamp) > sync_tolerance_.count())
-                {
-                    has_stale_timestamp = true;
-                }
-            }
-        }
-
-        mirror.out_of_date = has_missing_timestamp || has_stale_timestamp || !mirror.last_sync.has_value();
-
-        return mirror;
+    if (!mirror.last_sync.has_value()) {
+        mirror.out_of_date = true;
     }
+    return mirror;
+}
 
-    userver::yaml_config::Schema MirrorsDataCache::GetStaticConfigSchema()
-    {
-        return userver::yaml_config::MergeSchemas<CachingComponentBase>(R"(
+userver::formats::json::Value Serialize(
+    const MirrorEntry& entry,
+    userver::formats::serialize::To<userver::formats::json::Value>) {
+    auto builder            = userver::formats::json::ValueBuilder(userver::formats::json::Type::kObject);
+    builder["country_code"] = entry.country_code;
+    builder["url"]          = entry.url;
+    builder["out_of_date"]  = entry.out_of_date;
+    builder["tier"]         = entry.tier;
+
+    builder["last_sync"] = entry.last_sync
+        ? std::optional{userver::utils::datetime::UtcTimestring(
+              *entry.last_sync, userver::utils::datetime::kIsoFormat)}
+        : std::nullopt;
+    return builder.ExtractValue();
+}
+
+userver::yaml_config::Schema MirrorsDataCache::GetStaticConfigSchema() {
+    return userver::yaml_config::MergeSchemas<CachingComponentBase>(R"(
 type: object
 description: Cached mirror health data
 additionalProperties: false
@@ -616,14 +242,14 @@ properties:
         description: List of repo paths to evaluate under each mirror base URL
         items:
             type: string
-    request-timeout-ms:
-        type: integer
-        description: Timeout in milliseconds for outbound mirror requests
-        minimum: 1
-    sync-tolerance-seconds:
-        type: integer
-        description: Max lag in seconds still considered synced
-        minimum: 0
+            description: Repo path appended to a mirror base URL when fetching lastupdate
+    request-timeout:
+        type: string
+        description: Timeout (duration, e.g. 2s) for outbound mirror requests
+    sync-tolerance:
+        type: string
+        description: Max lag (duration, e.g. 1h) still considered synced
 )");
-    }
-} // namespace service::mirrors
+}
+
+}  // namespace service::mirrors

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef __clang__
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #pragma clang diagnostic ignored "-Wsign-conversion"
@@ -9,7 +9,7 @@
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #pragma clang diagnostic ignored "-Wshadow"
 #pragma clang diagnostic ignored "-Wnon-virtual-dtor"
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #endif
 
@@ -18,31 +18,32 @@
 
 #include <userver/formats/json/value.hpp>
 
-#ifdef __clang__
+#if defined(__clang__)
 #pragma clang diagnostic pop
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 
-namespace service::mirrors
-{
-    class MirrorsDataCache;
+namespace service::mirrors {
 
-    class MirrorsDataHandler final : public userver::server::handlers::HttpHandlerJsonBase
-    {
-    public:
-        static constexpr std::string_view kName = "handler-mirrors-data";
+class MirrorsDataCache;
 
-        MirrorsDataHandler(
-            const userver::components::ComponentConfig& config,
-            const userver::components::ComponentContext& component_context);
+class MirrorsDataHandler final : public userver::server::handlers::HttpHandlerJsonBase {
+ public:
+    // `kName` is used as the component name in static config
+    static constexpr std::string_view kName = "handler-mirrors-data";
 
-        userver::formats::json::Value HandleRequestJsonThrow(
-            const userver::server::http::HttpRequest& request,
-            const userver::formats::json::Value& request_json,
-            userver::server::request::RequestContext& ctx) const override;
+    MirrorsDataHandler(
+        const userver::components::ComponentConfig& config,
+        const userver::components::ComponentContext& component_context);
 
-    private:
-        MirrorsDataCache& cache_;
-    };
-} // namespace service::mirrors
+    userver::formats::json::Value HandleRequestJsonThrow(
+        const userver::server::http::HttpRequest& request,
+        const userver::formats::json::Value& request_json,
+        userver::server::request::RequestContext& ctx) const override;
+
+ private:
+    MirrorsDataCache& cache_;
+};
+
+}  // namespace service::mirrors

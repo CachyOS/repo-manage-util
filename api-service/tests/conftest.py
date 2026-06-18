@@ -32,6 +32,18 @@ def userver_config_mirrors(mockserver_info):
 
     return _patch_config
 
+
+# workaround for tests that don't call/implement such endpoints
+@pytest.fixture(autouse=True)
+def _mirrors_mockserver_defaults(mockserver):
+    @mockserver.handler('/mirrors/list')
+    def _mirrorlist(_request):
+        return mockserver.make_response('', 200)
+
+    @mockserver.handler('/primary', prefix=True)
+    def _primary(_request):
+        return mockserver.make_response('', 404)
+
 @pytest.fixture(scope='session')
 def service_source_dir():
     """Path to root directory service."""

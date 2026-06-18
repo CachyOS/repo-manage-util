@@ -1,13 +1,14 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
-#ifdef __clang__
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #pragma clang diagnostic ignored "-Wsign-conversion"
@@ -16,78 +17,77 @@
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #pragma clang diagnostic ignored "-Wshadow"
 #pragma clang diagnostic ignored "-Wnon-virtual-dtor"
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #endif
 
 #include <userver/cache/caching_component_base.hpp>
 #include <userver/clients/http/client.hpp>
 #include <userver/components/component_config.hpp>
-
+#include <userver/formats/json_fwd.hpp>
+#include <userver/formats/serialize/to.hpp>
 #include <userver/yaml_config/schema.hpp>
 
-#ifdef __clang__
+#include "mirrors_mirrorlist_parser.hpp"
+
+#if defined(__clang__)
 #pragma clang diagnostic pop
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 
-namespace service::mirrors
-{
-    struct MirrorEntry
-    {
-        std::string country_code;
-        std::string url;
-        bool out_of_date;
-        std::optional<std::int64_t> last_sync;
-        int tier;
-    };
+namespace service::mirrors {
 
-    struct MirrorsData
-    {
-        std::vector<MirrorEntry> mirrors;
-    };
+struct MirrorEntry {
+    std::string country_code;
+    std::string url;
+    bool out_of_date;
+    std::optional<std::chrono::system_clock::time_point> last_sync;
+    std::int32_t tier;
+};
 
-    class MirrorsDataCache final : public userver::components::CachingComponentBase<MirrorsData>
-    {
-    public:
-        static constexpr std::string_view kName = "mirrors-data-cache";
+struct MirrorsData {
+    std::vector<MirrorEntry> mirrors;
+};
 
-        MirrorsDataCache(
-            const userver::components::ComponentConfig& config,
-            const userver::components::ComponentContext& context);
+userver::formats::json::Value Serialize(
+    const MirrorEntry& entry,
+    userver::formats::serialize::To<userver::formats::json::Value>);
 
-        void Update(
-            userver::cache::UpdateType type,
-            const std::chrono::system_clock::time_point& last_update,
-            const std::chrono::system_clock::time_point& now,
-            userver::cache::UpdateStatisticsScope& stats_scope) override;
+class MirrorsDataCache final : public userver::components::CachingComponentBase<MirrorsData> {
+ public:
+    // `kName` is used as the component name in static config
+    static constexpr std::string_view kName = "mirrors-data-cache";
 
-        static userver::yaml_config::Schema GetStaticConfigSchema();
+    MirrorsDataCache(
+        const userver::components::ComponentConfig& config,
+        const userver::components::ComponentContext& context);
 
-    private:
-        struct MirrorMetadata
-        {
-            std::string country_code;
-            std::string url;
-            int tier;
-        };
+    void Update(
+        userver::cache::UpdateType type,
+        const std::chrono::system_clock::time_point& last_update,
+        const std::chrono::system_clock::time_point& now,
+        userver::cache::UpdateStatisticsScope& stats_scope) override;
 
-        using BaselineMap = std::unordered_map<std::string, std::optional<std::int64_t>>;
+    static userver::yaml_config::Schema GetStaticConfigSchema();
 
-        [[nodiscard]] auto FetchMirrorlist() const -> std::vector<MirrorMetadata>;
-        [[nodiscard]] auto FetchRepoTimestamp(std::string_view base_url, std::string_view repo_path) const
-            -> std::optional<std::int64_t>;
-        [[nodiscard]] auto ComputeMirrorsData() const -> MirrorsData;
-        [[nodiscard]] auto BuildMirrorEntry(
-            const MirrorMetadata& mirror_metadata,
-            const BaselineMap& baseline_map) const -> MirrorEntry;
+ private:
+    using Timestamp   = std::chrono::system_clock::time_point;
+    using BaselineMap = std::unordered_map<std::string, std::optional<Timestamp>>;
 
-        userver::clients::http::Client& http_client_;
-        std::string mirrorlist_url_;
-        std::string primary_mirror_url_;
-        std::vector<std::string> repo_paths_;
-        std::chrono::milliseconds request_timeout_;
-        std::chrono::seconds sync_tolerance_;
-    };
-} // namespace service::mirrors
+    std::vector<MirrorMetadata> FetchMirrorlist() const;
+    std::optional<Timestamp> FetchRepoTimestamp(
+        std::string_view base_url, std::string_view repo_path) const;
+    MirrorsData ComputeMirrorsData() const;
+    MirrorEntry BuildMirrorEntry(
+        const MirrorMetadata& mirror_metadata, const BaselineMap& baseline_map) const;
+
+    userver::clients::http::Client& http_client_;
+    std::string mirrorlist_url_;
+    std::string primary_mirror_url_;
+    std::vector<std::string> repo_paths_;
+    std::chrono::milliseconds request_timeout_;
+    std::chrono::seconds sync_tolerance_;
+};
+
+}  // namespace service::mirrors

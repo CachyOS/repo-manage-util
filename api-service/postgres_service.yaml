@@ -49,10 +49,9 @@ components_manager:
       url_trailing_slash: strict-match
 
     http-client:
-      load-enabled: $testsuite-enabled
     http-client-core:
-      load-enabled: $testsuite-enabled
       fs-task-processor: fs-task-processor
+      user-agent: RepoManageServer/1.0.0
 
     tests-control:
       load-enabled: $testsuite-enabled
@@ -169,8 +168,8 @@ components_manager:
       first-update-fail-ok: true
       mirrorlist-url: https://raw.githubusercontent.com/CachyOS/CachyOS-PKGBUILDS/refs/heads/master/cachyos-mirrorlist/cachyos-mirrorlist
       primary-mirror-url: https://build.cachyos.org/repo
-      request-timeout-ms: 2000
-      sync-tolerance-seconds: 3600
+      request-timeout: 2s
+      sync-tolerance: 1h
       repo-paths:
         - x86_64/cachyos
         - x86_64_v3/cachyos-v3

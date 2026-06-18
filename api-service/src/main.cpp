@@ -108,8 +108,8 @@ static auto create_table(std::string_view config_file_path, std::string_view con
 
     auto config_file_yml = userver::formats::yaml::blocking::FromFile(config_file_path.data());
     auto connection_url  = config_file_yml["components_manager"]["components"]
-                                         ["repomanage-postgres-db-1"]["dbconnection"]
-                                             .As<std::string>();
+                                          ["repomanage-postgres-db-1"]["dbconnection"]
+                                              .As<std::string>();
 
     std::string final_path_to_confvars{config_vars_path};
     if (config_vars_path.empty()) {

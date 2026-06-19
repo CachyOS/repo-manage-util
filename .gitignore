@@ -8,6 +8,9 @@ api-service/third_party
 api-service/build
 api-service/build.sh
 api-service/backend-rustlib/target
+api-service/compile_commands.json
 /**/__pycache__/
 web-dashboard/.next
 web-dashboard/node_modules
+.idea/
+.vscode/

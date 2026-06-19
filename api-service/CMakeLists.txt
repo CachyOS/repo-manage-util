@@ -112,6 +112,9 @@ target_compile_features(project_options INTERFACE cxx_std_23)
 ##
 add_executable(api-postgresql-service
    src/http_utils.cpp
+   src/mirrors_mirrorlist_parser.cpp
+   src/mirrors_data_cache.cpp
+   src/mirrors_data_handler.cpp
    src/package_utils.cpp
    src/package_handler.cpp
    src/package_files_handler.cpp
@@ -159,6 +162,14 @@ userver_testsuite_add_simple(
     PYTHON_BINARY "${TESTSUITE_PYTHON_BINARY}"
     CONFIG_PATH "${CMAKE_CURRENT_SOURCE_DIR}/postgres_service.yaml"
 )
+
+add_executable(${PROJECT_NAME}-unittest
+    src/mirrors_mirrorlist_parser_test.cpp
+    src/mirrors_mirrorlist_parser.cpp
+)
+target_link_libraries(${PROJECT_NAME}-unittest PRIVATE project_options userver::utest)
+target_include_directories(${PROJECT_NAME}-unittest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+userver_add_utest(NAME ${PROJECT_NAME}-unittest)
 endif()
 
 option(ENABLE_UNITY "Enable Unity builds of projects" OFF)

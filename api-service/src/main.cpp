@@ -1,4 +1,6 @@
 #include "arch_repo_checker.hpp"
+#include "mirrors_data_cache.hpp"
+#include "mirrors_data_handler.hpp"
 #include "package_files_handler.hpp"
 #include "package_handler.hpp"
 #include "packages_search_handler.hpp"
@@ -81,6 +83,8 @@ static auto create_service_component_list() noexcept
         .Append<service::pg::PackagesSearchHandler>()
         .Append<service::pg::PackagesSuggestHandler>()
         .Append<service::pg::SplitPackageHandler>()
+        .Append<service::mirrors::MirrorsDataCache>()
+        .Append<service::mirrors::MirrorsDataHandler>()
         .Append<service::alpm::ArchRepoCheckerComponent>()
         .Append<userver::congestion_control::Component>()
         .Append<userver::components::Postgres>("repomanage-postgres-db-1")
@@ -104,8 +108,8 @@ static auto create_table(std::string_view config_file_path, std::string_view con
 
     auto config_file_yml = userver::formats::yaml::blocking::FromFile(config_file_path.data());
     auto connection_url  = config_file_yml["components_manager"]["components"]
-                                         ["repomanage-postgres-db-1"]["dbconnection"]
-                                             .As<std::string>();
+                                          ["repomanage-postgres-db-1"]["dbconnection"]
+                                              .As<std::string>();
 
     std::string final_path_to_confvars{config_vars_path};
     if (config_vars_path.empty()) {

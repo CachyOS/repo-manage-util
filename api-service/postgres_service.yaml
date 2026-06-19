@@ -1,187 +1,209 @@
 config_vars: config_vars.yaml
 
 components_manager:
-    # /// [core]
-    coro_pool:
-        initial_size: $coro-pool-initial-size
-        initial_size#fallback: 4000
-        max_size: $coro-pool-max-size
-        max_size#fallback: 50000
+  # /// [core]
+  coro_pool:
+    initial_size: $coro-pool-initial-size
+    initial_size#fallback: 4000
+    max_size: $coro-pool-max-size
+    max_size#fallback: 50000
 
-    default_task_processor: main-task-processor  # Task processor in which components start.
+  default_task_processor: main-task-processor # Task processor in which components start.
 
-    task_processors:             # Task processor is an executor for coroutine tasks
-        fs-task-processor:       # for blocking operations
-            thread_name: fs-worker
-            worker_threads: $worker-fs-threads
-            worker_threads#fallback: 4
-        main-task-processor:     # for nonblocking operations
-            thread_name: main-worker
-            worker_threads: $worker-threads
-            worker_threads#fallback: 4
-        monitor-task-processor:  # for monitoring
-            thread_name: mon-worker
-            worker_threads: $monitor_worker_threads
-            worker_threads#fallback: 1
-        period-task-processor:
-            thread_name: pd-worker
-            os-scheduling: idle
-            worker_threads: 1
-    event_thread_pool:           # ev pools to deal with OS events
-        threads: $event_threads
-        threads#fallback: 2
-    # /// [core]
+  task_processors: # Task processor is an executor for coroutine tasks
+    fs-task-processor: # for blocking operations
+      thread_name: fs-worker
+      worker_threads: $worker-fs-threads
+      worker_threads#fallback: 4
+    main-task-processor: # for nonblocking operations
+      thread_name: main-worker
+      worker_threads: $worker-threads
+      worker_threads#fallback: 4
+    monitor-task-processor: # for monitoring
+      thread_name: mon-worker
+      worker_threads: $monitor_worker_threads
+      worker_threads#fallback: 1
+    period-task-processor:
+      thread_name: pd-worker
+      os-scheduling: idle
+      worker_threads: 1
+  event_thread_pool: # ev pools to deal with OS events
+    threads: $event_threads
+    threads#fallback: 2
+  # /// [core]
 
-    components: # Configuring components that were registered via component_list
+  components: # Configuring components that were registered via component_list
+    # /// [static config congestion-control]
+    congestion-control:
+      fake-mode: $testsuite-enabled
+      load-enabled: true
+    # /// [static config congestion-control]
 
-        # /// [static config congestion-control]
-        congestion-control:
-            fake-mode: $testsuite-enabled
-            load-enabled: true
-        # /// [static config congestion-control]
+    # /// [testsuite only]
+    handler-ping:
+      load-enabled: $testsuite-enabled
+      path: /ping
+      method: GET
+      task_processor: main-task-processor
+      throttling_enabled: false
+      url_trailing_slash: strict-match
 
-        # /// [testsuite only]
-        handler-ping:
-            load-enabled: $testsuite-enabled
-            path: /ping
-            method: GET
-            task_processor: main-task-processor
-            throttling_enabled: false
-            url_trailing_slash: strict-match
+    http-client:
+    http-client-core:
+      fs-task-processor: fs-task-processor
+      user-agent: RepoManageServer/1.0.0
 
-        http-client:
-            load-enabled: $testsuite-enabled
-        http-client-core:
-            load-enabled: $testsuite-enabled
-            fs-task-processor: fs-task-processor
+    tests-control:
+      load-enabled: $testsuite-enabled
+      path: /tests/{action}
+      method: POST
+      task_processor: main-task-processor
+      testpoint-timeout: 10s
+      testpoint-url: mockserver/testpoint
+      throttling_enabled: false
 
-        tests-control:
-            load-enabled: $testsuite-enabled
-            path: /tests/{action}
-            method: POST
-            task_processor: main-task-processor
-            testpoint-timeout: 10s
-            testpoint-url: mockserver/testpoint
-            throttling_enabled: false
+    testsuite-support:
+    # /// [testsuite only]
 
-        testsuite-support:
-        # /// [testsuite only]
+    dns-client:
+      fs-task-processor: fs-task-processor
 
-        dns-client:
-            fs-task-processor: fs-task-processor
+    # /// [logging]
+    logging:
+      fs-task-processor: fs-task-processor
+      loggers:
+        default:
+          file_path: "@stderr"
+          level: $logger-level
+          level#fallback: info
+          overflow_behavior: discard # Drop logs if the system is too busy to write them down.
 
-        # /// [logging]
-        logging:
-            fs-task-processor: fs-task-processor
-            loggers:
-                default:
-                    file_path: '@stderr'
-                    level: $logger-level
-                    level#fallback: info
-                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+    logging-configurator:
+      limited-logging-enable: true
+      limited-logging-interval: 1s
+    # /// [logging]
 
-        logging-configurator:
-            limited-logging-enable: true
-            limited-logging-interval: 1s
-        # /// [logging]
+    # /// [server listen]
+    server:
+      listener:
+        # If the service is behind nginx or some other local proxy, it is
+        # efficient to accepts incoming requests from unix-socket
+        #
+        # unix-socket: /var/run/production_service/service.socket
+        port: $server-port
+        port#fallback: 8085
+        connection:
+          in_buffer_size: 32768
+          requests_queue_size_threshold: 100
+        task_processor: main-task-processor
+      listener-monitor:
+        # Listen for developer/utility requests [required for handler-server-monitor]
+        port: $monitor-server-port
+        port#fallback: 8086
+        connection:
+          in_buffer_size: 32768
+          requests_queue_size_threshold: 100
+        task_processor: monitor-task-processor
+      server-name: $server-name
+    # /// [server listen]
 
-        # /// [server listen]
-        server:
-            listener:
-                # If the service is behind nginx or some other local proxy, it is
-                # efficient to accepts incoming requests from unix-socket
-                #
-                # unix-socket: /var/run/production_service/service.socket
-                port: $server-port
-                port#fallback: 8085
-                connection:
-                    in_buffer_size: 32768
-                    requests_queue_size_threshold: 100
-                task_processor: main-task-processor
-            listener-monitor:
-                # Listen for developer/utility requests [required for handler-server-monitor]
-                port: $monitor-server-port
-                port#fallback: 8086
-                connection:
-                    in_buffer_size: 32768
-                    requests_queue_size_threshold: 100
-                task_processor: monitor-task-processor
-            server-name: $server-name
-        # /// [server listen]
+    # /// [secdist]
+    default-secdist-provider:
+      config: $secdist-path
+      missing-ok: true
+      environment-secrets-key: SECDIST_CONFIG
 
-        # /// [secdist]
-        default-secdist-provider:
-            config: $secdist-path
-            missing-ok: true
-            environment-secrets-key: SECDIST_CONFIG
+    # /// [secdist]
 
-        # /// [secdist]
+    # /// [metrics]
+    handler-server-monitor:
+      path: /metrics
+      method: GET
+      task_processor: monitor-task-processor
+      format: prometheus
+    # /// [metrics]
 
-        # /// [metrics]
-        handler-server-monitor:
-            path: /metrics
-            method: GET
-            task_processor: monitor-task-processor
-            format: prometheus
-        # /// [metrics]
+    # /// [dynamic configs]
+    dynamic-config:
+      defaults-path: $config-fallback
+      fs-task-processor: fs-task-processor
+    # /// [dynamic configs]
 
-        # /// [dynamic configs]
-        dynamic-config:
-            defaults-path: $config-fallback
-            fs-task-processor: fs-task-processor
-        # /// [dynamic configs]
+    # /// [our API endpoints]
+    handler-package:
+      path: /api/v1/package/{repo}/{arch}/{pkgname}
+      task_processor: main-task-processor
+      method: GET
 
-        # /// [our API endpoints]
-        handler-package:
-            path: /api/v1/package/{repo}/{arch}/{pkgname}
-            task_processor: main-task-processor
-            method: GET
+    handler-package-files:
+      path: /api/v1/package/{repo}/{arch}/{pkgname}/files
+      task_processor: main-task-processor
+      method: GET
 
-        handler-package-files:
-            path: /api/v1/package/{repo}/{arch}/{pkgname}/files
-            task_processor: main-task-processor
-            method: GET
+    handler-packages-search:
+      path: /api/v1/packages-search
+      task_processor: main-task-processor
+      method: GET
+      redisdb: redis-sentinel
+      cache-ttl: 15m
 
-        handler-packages-search:
-            path: /api/v1/packages-search
-            task_processor: main-task-processor
-            method: GET
-            redisdb: redis-sentinel
-            cache-ttl: 15m
+    handler-split-package:
+      path: /api/v1/split/{repo}/{pkgbase}
+      task_processor: main-task-processor
+      method: GET
 
-        handler-split-package:
-            path: /api/v1/split/{repo}/{pkgbase}
-            task_processor: main-task-processor
-            method: GET
+    handler-packages-suggest:
+      path: /api/v1/packages/suggest/{query}
+      task_processor: main-task-processor
+      method: GET
 
-        handler-packages-suggest:
-            path: /api/v1/packages/suggest/{query}
-            task_processor: main-task-processor
-            method: GET
-        # /// [our API endpoints]
+    handler-mirrors-data:
+      path: /api/v1/mirrors
+      task_processor: main-task-processor
+      method: GET
+    # /// [our API endpoints]
 
-        # /// Periodic task
-        arch-repo-checker:
-            load-enabled: $enabled-without-testsuite
-            blocking_task_processor: period-task-processor
-            update-period: 3600 # 1h
-        # /// [Periodic task]
+    mirrors-data-cache:
+      update-interval: 5m
+      first-update-fail-ok: true
+      mirrorlist-url: https://raw.githubusercontent.com/CachyOS/CachyOS-PKGBUILDS/refs/heads/master/cachyos-mirrorlist/cachyos-mirrorlist
+      primary-mirror-url: https://build.cachyos.org/repo
+      request-timeout: 2s
+      sync-tolerance: 1h
+      repo-paths:
+        - x86_64/cachyos
+        - x86_64_v3/cachyos-v3
+        - x86_64_v3/cachyos-core-v3
+        - x86_64_v3/cachyos-extra-v3
+        - x86_64_v4/cachyos-v4
+        - x86_64_v4/cachyos-core-v4
+        - x86_64_v4/cachyos-extra-v4
+        - x86_64_v4/cachyos-znver4
+        - x86_64_v4/cachyos-core-znver4
+        - x86_64_v4/cachyos-extra-znver4
 
-        # /// [DB]
-        repomanage-postgres-db-1:
-            dbconnection: $db-connection
-            dbconnection#env: DB_CONNECTION
-            blocking_task_processor: fs-task-processor
-            dns_resolver: async
-            sync-start: true
-            check-user-types: true
+    # /// Periodic task
+    arch-repo-checker:
+      load-enabled: $enabled-without-testsuite
+      blocking_task_processor: period-task-processor
+      update-period: 3600 # 1h
+    # /// [Periodic task]
 
-        redis-cache-1:
-            groups:
-                - config_name: redis-sentinel
-                  db: redis-sentinel
-            subscribe_groups: []
-            thread_pools:
-                redis_thread_pool_size: 2
-                sentinel_thread_pool_size: 1
-        # /// [DB]
+    # /// [DB]
+    repomanage-postgres-db-1:
+      dbconnection: $db-connection
+      dbconnection#env: DB_CONNECTION
+      blocking_task_processor: fs-task-processor
+      dns_resolver: async
+      sync-start: true
+      check-user-types: true
+
+    redis-cache-1:
+      groups:
+        - config_name: redis-sentinel
+          db: redis-sentinel
+      subscribe_groups: []
+      thread_pools:
+        redis_thread_pool_size: 2
+        sentinel_thread_pool_size: 1
+    # /// [DB]

@@ -145,7 +145,7 @@ auto try_extract_url(std::string_view raw) -> std::optional<std::string_view> {
 }
 
 auto parse_server_directive(std::string_view raw) -> ParsedServerDirective {
-    static constexpr kServerDirective = "Server"sv;
+    static constexpr auto kServerDirective = "Server"sv;
 
     auto candidate = text::TrimView(raw);
     if (!text::StartsWith(candidate, kServerDirective)) {

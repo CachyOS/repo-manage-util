@@ -113,6 +113,6 @@ int main(int argc, const char* const argv[]) {
         userver::logging::MakeStderrLogger("default", userver::logging::Format::kJson, userver::logging::LevelFromString(config.log_level))};
 
     userver::engine::RunStandalone(config.worker_threads, [&] {
-        userver::engine::AsyncNoSpan(userver::engine::current_task::GetBlockingTaskProcessor(), &run_main).Get();
+        userver::engine::AsyncNoTracing(userver::engine::current_task::GetBlockingTaskProcessor(), &run_main).Get();
     });
 }

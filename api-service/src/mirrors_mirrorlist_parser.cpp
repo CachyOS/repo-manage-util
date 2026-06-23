@@ -81,7 +81,6 @@ auto normalize_mirror_base_url(std::string_view raw) -> std::optional<std::strin
     std::string normalized{*candidate};
 
     static constexpr std::array kPacmanSuffixes{
-        "/repo/$arch/$repo"sv,
         "/$repo/$arch"sv,
         "/$arch/$repo"sv,
         "/$repo"sv,

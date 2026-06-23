@@ -61,7 +61,16 @@ TEST(MirrorlistParser, BareServerLineFollowedByCommentedUrlIsSkipped) {
 TEST(MirrorlistParser, StandaloneUrlIsParsed) {
     const auto mirrors = ParseMirrorlist("https://plain.example.org/repo/$arch/$repo");
     ASSERT_EQ(mirrors.size(), 1u);
-    EXPECT_EQ(mirrors[0].url, "https://plain.example.org/");
+    EXPECT_EQ(mirrors[0].url, "https://plain.example.org/repo/");
+}
+
+TEST(MirrorlistParser, LiteralRepoDirectoryIsPreserved) {
+    const auto mirrors = ParseMirrorlist(
+        "Server = https://at.cachyos.org/repo/$arch/$repo\n"
+        "Server = https://ca.mirror.cx/cachyos/repo/$arch/$repo");
+    ASSERT_EQ(mirrors.size(), 2u);
+    EXPECT_EQ(mirrors[0].url, "https://at.cachyos.org/repo/");
+    EXPECT_EQ(mirrors[1].url, "https://ca.mirror.cx/cachyos/repo/");
 }
 
 TEST(MirrorlistParser, NonHttpLinesAreIgnored) {

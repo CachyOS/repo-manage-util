@@ -123,7 +123,7 @@ std::optional<MirrorsDataCache::Timestamp> MirrorsDataCache::FetchRepoTimestamp(
         if (!parsed.has_value()) {
             return std::nullopt;
         }
-        return Timestamp{std::chrono::milliseconds{parsed.value()}};
+        return Timestamp{std::chrono::microseconds{parsed.value()}};
     } catch (const std::exception& ex) {
         LOG_DEBUG("Failed to fetch repo timestamp for '{}' from '{}': {}",
             repo_path, base_url, ex.what());

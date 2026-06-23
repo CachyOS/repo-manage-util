@@ -12,28 +12,28 @@ def _register_lastupdate_handler(mockserver, prefix, values):
 
 async def test_get_mirrors(service_client, mockserver):
     primary_values = {
-        'x86_64/cachyos': 172_800_000,
-        'x86_64_v3/cachyos-v3': 259_200_000,
-        'x86_64_v4/cachyos-v4': 345_600_000,
+        'x86_64/cachyos': 172_800_000_000,
+        'x86_64_v3/cachyos-v3': 259_200_000_000,
+        'x86_64_v4/cachyos-v4': 345_600_000_000,
     }
     mirror_a_values = {
-        'x86_64/cachyos': 172_800_000,
-        'x86_64_v3/cachyos-v3': 259_200_000,
-        'x86_64_v4/cachyos-v4': 345_600_000,
+        'x86_64/cachyos': 172_800_000_000,
+        'x86_64_v3/cachyos-v3': 259_200_000_000,
+        'x86_64_v4/cachyos-v4': 345_600_000_000,
     }
     mirror_b_values = {
-        'x86_64/cachyos': 86_400_000,
-        'x86_64_v3/cachyos-v3': 259_200_000,
-        'x86_64_v4/cachyos-v4': 345_600_000,
+        'x86_64/cachyos': 86_400_000_000,
+        'x86_64_v3/cachyos-v3': 259_200_000_000,
+        'x86_64_v4/cachyos-v4': 345_600_000_000,
     }
     mirror_c_values = {
-        'x86_64_v3/cachyos-v3': 259_200_000,
-        'x86_64_v4/cachyos-v4': 345_600_000,
+        'x86_64_v3/cachyos-v3': 259_200_000_000,
+        'x86_64_v4/cachyos-v4': 345_600_000_000,
     }
     mirror_e_values = {
-        'x86_64/cachyos': 172_800_000,
-        'x86_64_v3/cachyos-v3': 259_200_000,
-        'x86_64_v4/cachyos-v4': 345_600_000,
+        'x86_64/cachyos': 172_800_000_000,
+        'x86_64_v3/cachyos-v3': 259_200_000_000,
+        'x86_64_v4/cachyos-v4': 345_600_000_000,
     }
 
     @mockserver.handler('/mirrors/list')
@@ -63,10 +63,10 @@ async def test_get_mirrors(service_client, mockserver):
         )
 
     _register_lastupdate_handler(mockserver, '/primary', primary_values)
-    _register_lastupdate_handler(mockserver, '/mirror-a', mirror_a_values)
-    _register_lastupdate_handler(mockserver, '/mirror-b', mirror_b_values)
-    _register_lastupdate_handler(mockserver, '/mirror-c', mirror_c_values)
-    _register_lastupdate_handler(mockserver, '/mirror-e', mirror_e_values)
+    _register_lastupdate_handler(mockserver, '/mirror-a/repo', mirror_a_values)
+    _register_lastupdate_handler(mockserver, '/mirror-b/repo', mirror_b_values)
+    _register_lastupdate_handler(mockserver, '/mirror-c/repo', mirror_c_values)
+    _register_lastupdate_handler(mockserver, '/mirror-e/repo', mirror_e_values)
 
     await service_client.invalidate_caches(cache_names=['mirrors-data-cache'])
 
@@ -78,36 +78,36 @@ async def test_get_mirrors(service_client, mockserver):
 
     mirrors_by_url = {mirror['url']: mirror for mirror in payload['mirrors']}
     assert set(mirrors_by_url) == {
-        mockserver.url('/mirror-a/'),
-        mockserver.url('/mirror-b/'),
-        mockserver.url('/mirror-c/'),
-        mockserver.url('/mirror-e/'),
+        mockserver.url('/mirror-a/repo/'),
+        mockserver.url('/mirror-b/repo/'),
+        mockserver.url('/mirror-c/repo/'),
+        mockserver.url('/mirror-e/repo/'),
     }
 
-    assert mirrors_by_url[mockserver.url('/mirror-a/')] == {
+    assert mirrors_by_url[mockserver.url('/mirror-a/repo/')] == {
         'country_code': 'FR',
-        'url': mockserver.url('/mirror-a/'),
+        'url': mockserver.url('/mirror-a/repo/'),
         'out_of_date': False,
         'last_sync': '1970-01-03T00:00:00Z',
         'tier': 1,
     }
-    assert mirrors_by_url[mockserver.url('/mirror-b/')] == {
+    assert mirrors_by_url[mockserver.url('/mirror-b/repo/')] == {
         'country_code': 'US',
-        'url': mockserver.url('/mirror-b/'),
+        'url': mockserver.url('/mirror-b/repo/'),
         'out_of_date': True,
         'last_sync': '1970-01-02T00:00:00Z',
         'tier': 2,
     }
-    assert mirrors_by_url[mockserver.url('/mirror-c/')] == {
+    assert mirrors_by_url[mockserver.url('/mirror-c/repo/')] == {
         'country_code': 'NO',
-        'url': mockserver.url('/mirror-c/'),
+        'url': mockserver.url('/mirror-c/repo/'),
         'out_of_date': True,
         'last_sync': '1970-01-04T00:00:00Z',
         'tier': 1,
     }
-    assert mirrors_by_url[mockserver.url('/mirror-e/')] == {
+    assert mirrors_by_url[mockserver.url('/mirror-e/repo/')] == {
         'country_code': 'FI',
-        'url': mockserver.url('/mirror-e/'),
+        'url': mockserver.url('/mirror-e/repo/'),
         'out_of_date': False,
         'last_sync': '1970-01-03T00:00:00Z',
         'tier': 2,

@@ -18,7 +18,7 @@ pub struct Cli {
     to: Option<String>,
 
     /// Flag to update only postgres DB for Reset command
-    #[arg(global = true, short, long)]
+    #[arg(global = true, long)]
     only_pg: bool,
 
     #[command(subcommand)]
@@ -53,7 +53,7 @@ pub struct ProfileAurCli {
     pub profile: String,
 
     /// Build order based on dependency tree into a file
-    #[arg(long, value_name = "FILE")]
+    #[arg(short, long, value_name = "FILE")]
     pub order_file: Option<PathBuf>,
 
     /// Dry run (without downloading sources)

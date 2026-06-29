@@ -18,7 +18,7 @@ pub struct Cli {
     to: Option<String>,
 
     /// Flag to update only postgres DB for Reset command
-    #[arg(global = true, short, long)]
+    #[arg(global = true, long)]
     only_pg: bool,
 
     #[command(subcommand)]

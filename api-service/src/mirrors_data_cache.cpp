@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -73,7 +74,7 @@ auto join_timestamp_url(std::string_view base_url, std::string_view repo_path) -
 
 struct MirrorAggregate {
     MirrorStatus overall_status = MirrorStatus::kError;
-    std::optional<double> average_lag_seconds;
+    std::optional<std::int64_t> average_lag_seconds;
     std::optional<std::int64_t> delay_seconds;
 };
 
@@ -81,7 +82,7 @@ struct MirrorAggregate {
 auto classify_mirror(const std::vector<RepoCheck>& checks) -> MirrorAggregate {
     std::size_t synced{};
     std::size_t errored{};
-    std::size_t positive_lags{};
+    std::int64_t measured_lags{};
     std::int64_t lag_sum{};
     std::int64_t lag_max{};
     for (const auto& check : checks) {
@@ -90,10 +91,12 @@ auto classify_mirror(const std::vector<RepoCheck>& checks) -> MirrorAggregate {
         } else if (check.status == RepoStatus::kError) {
             ++errored;
         }
-        if (check.sync_lag_seconds && *check.sync_lag_seconds > 0) {
-            lag_sum += *check.sync_lag_seconds;
-            lag_max = std::max(lag_max, *check.sync_lag_seconds);
-            ++positive_lags;
+        if (check.sync_lag_seconds) {
+            // a mirror ahead of the baseline is not stale, so clamp to zero
+            const auto lag = std::max<std::int64_t>(0, *check.sync_lag_seconds);
+            lag_sum += lag;
+            lag_max = std::max(lag_max, lag);
+            ++measured_lags;
         }
     }
 
@@ -109,9 +112,10 @@ auto classify_mirror(const std::vector<RepoCheck>& checks) -> MirrorAggregate {
         aggregate.overall_status = MirrorStatus::kPartial;
     }
 
-    if (positive_lags != 0) {
-        aggregate.average_lag_seconds = static_cast<double>(lag_sum) / static_cast<double>(positive_lags);
+    if (measured_lags != 0) {
         aggregate.delay_seconds       = lag_max;
+        aggregate.average_lag_seconds = std::llround(
+            static_cast<double>(lag_sum) / static_cast<double>(measured_lags));
     }
     return aggregate;
 }
@@ -246,7 +250,7 @@ MirrorEntry MirrorsDataCache::BuildMirrorEntry(
         };
 
         if (timestamp.has_value()) {
-            if (!mirror.last_sync.has_value() || *timestamp < *mirror.last_sync) {
+            if (!mirror.last_sync.has_value() || *timestamp > *mirror.last_sync) {
                 mirror.last_sync = timestamp;
             }
 

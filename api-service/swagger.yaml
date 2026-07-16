@@ -364,7 +364,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: Oldest successful tracked repo sync represented as UTC.
+          description: Newest successful tracked repo sync represented as UTC.
         tier:
           type: integer
           enum: [1, 2]
@@ -377,20 +377,21 @@ components:
             partial (some synced), out-of-sync (none synced but reachable), error
             (no reachable repo data).
         average_lag_seconds:
-          type: number
-          format: double
+          type: integer
+          format: int64
           nullable: true
           description: >-
-            Mean of positive per-repo sync lags (seconds behind the primary
-            build server). Null when no positive lag was measured.
+            Mean per-repo sync lag in seconds behind the primary build server,
+            across every repo with a baseline to compare against (0 when fully in
+            sync). Null when no tracked repo has a baseline.
         delay_seconds:
           type: integer
           format: int64
           nullable: true
           description: >-
-            Maximum positive per-repo sync lag in seconds (worst-case staleness
-            versus the primary build server), suitable for delay thresholds.
-            Null when no positive lag was measured.
+            Maximum per-repo sync lag in seconds (worst-case staleness versus the
+            primary build server), suitable for delay thresholds. 0 when fully in
+            sync. Null when no tracked repo has a baseline.
         checks:
           type: array
           description: Per-repo freshness breakdown against the primary build server.

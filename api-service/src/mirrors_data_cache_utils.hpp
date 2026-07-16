@@ -61,7 +61,7 @@ struct MirrorEntry {
     std::string url;
     std::optional<std::chrono::system_clock::time_point> last_sync;
     std::vector<RepoCheck> checks;
-    std::optional<double> average_lag_seconds;
+    std::optional<std::int64_t> average_lag_seconds;
     std::optional<std::int64_t> delay_seconds;
     MirrorStatus overall_status = MirrorStatus::kError;
 };

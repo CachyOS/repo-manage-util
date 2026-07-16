@@ -24,10 +24,9 @@
 #include <userver/cache/caching_component_base.hpp>
 #include <userver/clients/http/client.hpp>
 #include <userver/components/component_config.hpp>
-#include <userver/formats/json_fwd.hpp>
-#include <userver/formats/serialize/to.hpp>
 #include <userver/yaml_config/schema.hpp>
 
+#include "mirrors_data_cache_utils.hpp"
 #include "mirrors_mirrorlist_parser.hpp"
 
 #if defined(__clang__)
@@ -37,22 +36,6 @@
 #endif
 
 namespace service::mirrors {
-
-struct MirrorEntry {
-    std::string country_code;
-    std::string url;
-    bool out_of_date;
-    std::optional<std::chrono::system_clock::time_point> last_sync;
-    std::int32_t tier;
-};
-
-struct MirrorsData {
-    std::vector<MirrorEntry> mirrors;
-};
-
-userver::formats::json::Value Serialize(
-    const MirrorEntry& entry,
-    userver::formats::serialize::To<userver::formats::json::Value>);
 
 class MirrorsDataCache final : public userver::components::CachingComponentBase<MirrorsData> {
  public:

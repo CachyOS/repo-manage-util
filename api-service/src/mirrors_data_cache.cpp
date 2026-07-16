@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <ranges>
@@ -33,11 +34,8 @@
 #include <userver/engine/async.hpp>
 #include <userver/engine/get_all.hpp>
 #include <userver/engine/task/task_with_result.hpp>
-#include <userver/formats/json/value_builder.hpp>
-#include <userver/formats/serialize/common_containers.hpp>
 #include <userver/http/url.hpp>
 #include <userver/logging/log.hpp>
-#include <userver/utils/datetime_light.hpp>
 #include <userver/utils/from_string.hpp>
 #include <userver/utils/text_light.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
@@ -51,6 +49,9 @@
 namespace {
 
 namespace text = userver::utils::text;
+using service::mirrors::MirrorStatus;
+using service::mirrors::RepoCheck;
+using service::mirrors::RepoStatus;
 
 inline constexpr std::string_view kLastUpdateEndpoint = "lastupdate";
 
@@ -68,6 +69,51 @@ auto join_timestamp_url(std::string_view base_url, std::string_view repo_path) -
     url.push_back('/');
     url.append(kLastUpdateEndpoint);
     return url;
+}
+
+struct MirrorAggregate {
+    MirrorStatus overall_status = MirrorStatus::kError;
+    std::optional<double> average_lag_seconds;
+    std::optional<std::int64_t> delay_seconds;
+};
+
+// Derives the mirror-level status and lag summary purely from its per-repo checks.
+auto classify_mirror(const std::vector<RepoCheck>& checks) -> MirrorAggregate {
+    std::size_t synced{};
+    std::size_t errored{};
+    std::size_t positive_lags{};
+    std::int64_t lag_sum{};
+    std::int64_t lag_max{};
+    for (const auto& check : checks) {
+        if (check.status == RepoStatus::kSynced) {
+            ++synced;
+        } else if (check.status == RepoStatus::kError) {
+            ++errored;
+        }
+        if (check.sync_lag_seconds && *check.sync_lag_seconds > 0) {
+            lag_sum += *check.sync_lag_seconds;
+            lag_max = std::max(lag_max, *check.sync_lag_seconds);
+            ++positive_lags;
+        }
+    }
+
+    MirrorAggregate aggregate;
+    const auto total = checks.size();
+    if (errored == total) {
+        aggregate.overall_status = MirrorStatus::kError;
+    } else if (synced == total) {
+        aggregate.overall_status = MirrorStatus::kHealthy;
+    } else if (synced == 0) {
+        aggregate.overall_status = MirrorStatus::kOutOfSync;
+    } else {
+        aggregate.overall_status = MirrorStatus::kPartial;
+    }
+
+    if (positive_lags != 0) {
+        aggregate.average_lag_seconds = static_cast<double>(lag_sum) / static_cast<double>(positive_lags);
+        aggregate.delay_seconds       = lag_max;
+    }
+    return aggregate;
 }
 
 }  // namespace
@@ -178,51 +224,58 @@ MirrorEntry MirrorsDataCache::BuildMirrorEntry(
     }) | std::ranges::to<std::vector>();
 
     MirrorEntry mirror{
-        .country_code = mirror_metadata.country_code,
-        .url          = mirror_metadata.url,
-        .out_of_date  = false,
-        .last_sync    = std::nullopt,
-        .tier         = mirror_metadata.tier,
+        .out_of_date         = false,
+        .tier                = mirror_metadata.tier,
+        .country_code        = mirror_metadata.country_code,
+        .url                 = mirror_metadata.url,
+        .last_sync           = std::nullopt,
+        .checks              = {},
+        .average_lag_seconds = std::nullopt,
+        .delay_seconds       = std::nullopt,
     };
+
+    mirror.checks.reserve(repo_paths_.size());
 
     const auto timestamps = userver::engine::GetAll(timestamp_tasks);
     for (const auto& [repo_path, timestamp] : std::ranges::views::zip(repo_paths_, timestamps)) {
-        if (!timestamp.has_value()) {
-            mirror.out_of_date = true;
-            continue;
+        RepoCheck check{
+            .path             = repo_path,
+            .last_updated     = timestamp,
+            .sync_lag_seconds = std::nullopt,
+            .status           = RepoStatus::kError,
+        };
+
+        if (timestamp.has_value()) {
+            if (!mirror.last_sync.has_value() || *timestamp < *mirror.last_sync) {
+                mirror.last_sync = timestamp;
+            }
+
+            const auto baseline_it = baseline_map.find(repo_path);
+            if (baseline_it != baseline_map.end() && baseline_it->second.has_value()) {
+                const auto raw_lag     = *baseline_it->second - *timestamp;
+                check.sync_lag_seconds = std::chrono::duration_cast<std::chrono::seconds>(raw_lag).count();
+                check.status           = raw_lag > sync_tolerance_ ? RepoStatus::kOutOfSync : RepoStatus::kSynced;
+            } else {
+                // nothing to compare against
+                check.status = RepoStatus::kSynced;
+            }
         }
 
-        if (!mirror.last_sync.has_value() || *timestamp < *mirror.last_sync) {
-            mirror.last_sync = timestamp;
-        }
-
-        const auto baseline_it = baseline_map.find(repo_path);
-        if (baseline_it != baseline_map.end() && baseline_it->second.has_value()
-            && (*baseline_it->second - *timestamp) > sync_tolerance_) {
+        if (check.status != RepoStatus::kSynced) {
             mirror.out_of_date = true;
         }
+        mirror.checks.push_back(std::move(check));
     }
 
     if (!mirror.last_sync.has_value()) {
         mirror.out_of_date = true;
     }
+
+    const auto aggregate       = classify_mirror(mirror.checks);
+    mirror.overall_status      = aggregate.overall_status;
+    mirror.average_lag_seconds = aggregate.average_lag_seconds;
+    mirror.delay_seconds       = aggregate.delay_seconds;
     return mirror;
-}
-
-userver::formats::json::Value Serialize(
-    const MirrorEntry& entry,
-    userver::formats::serialize::To<userver::formats::json::Value>) {
-    auto builder            = userver::formats::json::ValueBuilder(userver::formats::json::Type::kObject);
-    builder["country_code"] = entry.country_code;
-    builder["url"]          = entry.url;
-    builder["out_of_date"]  = entry.out_of_date;
-    builder["tier"]         = entry.tier;
-
-    builder["last_sync"] = entry.last_sync
-        ? std::optional{userver::utils::datetime::UtcTimestring(
-              *entry.last_sync, userver::utils::datetime::kIsoFormat)}
-        : std::nullopt;
-    return builder.ExtractValue();
 }
 
 userver::yaml_config::Schema MirrorsDataCache::GetStaticConfigSchema() {

@@ -84,12 +84,37 @@ async def test_get_mirrors(service_client, mockserver):
         mockserver.url('/mirror-e/repo/'),
     }
 
+    synced_checks = [
+        {
+            'path': 'x86_64/cachyos',
+            'status': 'synced',
+            'last_updated': '1970-01-03T00:00:00Z',
+            'sync_lag_seconds': 0,
+        },
+        {
+            'path': 'x86_64_v3/cachyos-v3',
+            'status': 'synced',
+            'last_updated': '1970-01-04T00:00:00Z',
+            'sync_lag_seconds': 0,
+        },
+        {
+            'path': 'x86_64_v4/cachyos-v4',
+            'status': 'synced',
+            'last_updated': '1970-01-05T00:00:00Z',
+            'sync_lag_seconds': 0,
+        },
+    ]
+
     assert mirrors_by_url[mockserver.url('/mirror-a/repo/')] == {
         'country_code': 'FR',
         'url': mockserver.url('/mirror-a/repo/'),
         'out_of_date': False,
         'last_sync': '1970-01-03T00:00:00Z',
         'tier': 1,
+        'overall_status': 'healthy',
+        'average_lag_seconds': None,
+        'delay_seconds': None,
+        'checks': synced_checks,
     }
     assert mirrors_by_url[mockserver.url('/mirror-b/repo/')] == {
         'country_code': 'US',
@@ -97,6 +122,19 @@ async def test_get_mirrors(service_client, mockserver):
         'out_of_date': True,
         'last_sync': '1970-01-02T00:00:00Z',
         'tier': 2,
+        'overall_status': 'partial',
+        'average_lag_seconds': 86400.0,
+        'delay_seconds': 86400,
+        'checks': [
+            {
+                'path': 'x86_64/cachyos',
+                'status': 'out-of-sync',
+                'last_updated': '1970-01-02T00:00:00Z',
+                'sync_lag_seconds': 86400,
+            },
+            synced_checks[1],
+            synced_checks[2],
+        ],
     }
     assert mirrors_by_url[mockserver.url('/mirror-c/repo/')] == {
         'country_code': 'NO',
@@ -104,6 +142,19 @@ async def test_get_mirrors(service_client, mockserver):
         'out_of_date': True,
         'last_sync': '1970-01-04T00:00:00Z',
         'tier': 1,
+        'overall_status': 'partial',
+        'average_lag_seconds': None,
+        'delay_seconds': None,
+        'checks': [
+            {
+                'path': 'x86_64/cachyos',
+                'status': 'error',
+                'last_updated': None,
+                'sync_lag_seconds': None,
+            },
+            synced_checks[1],
+            synced_checks[2],
+        ],
     }
     assert mirrors_by_url[mockserver.url('/mirror-e/repo/')] == {
         'country_code': 'FI',
@@ -111,4 +162,8 @@ async def test_get_mirrors(service_client, mockserver):
         'out_of_date': False,
         'last_sync': '1970-01-03T00:00:00Z',
         'tier': 2,
+        'overall_status': 'healthy',
+        'average_lag_seconds': None,
+        'delay_seconds': None,
+        'checks': synced_checks,
     }

@@ -114,6 +114,7 @@ add_executable(api-postgresql-service
    src/http_utils.cpp
    src/mirrors_mirrorlist_parser.cpp
    src/mirrors_data_cache.cpp
+   src/mirrors_data_cache_utils.cpp
    src/mirrors_data_handler.cpp
    src/package_utils.cpp
    src/package_handler.cpp

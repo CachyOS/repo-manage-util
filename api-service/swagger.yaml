@@ -369,7 +369,57 @@ components:
           type: integer
           enum: [1, 2]
           description: Tier 1 mirrors pull directly from upstream, tier 2 mirrors do not.
-      required: [country_code, url, out_of_date, last_sync, tier]
+        overall_status:
+          type: string
+          enum: [healthy, partial, out-of-sync, error]
+          description: >-
+            Aggregate sync health across all tracked repos: healthy (all synced),
+            partial (some synced), out-of-sync (none synced but reachable), error
+            (no reachable repo data).
+        average_lag_seconds:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Mean of positive per-repo sync lags (seconds behind the primary
+            build server). Null when no positive lag was measured.
+        delay_seconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: >-
+            Maximum positive per-repo sync lag in seconds (worst-case staleness
+            versus the primary build server), suitable for delay thresholds.
+            Null when no positive lag was measured.
+        checks:
+          type: array
+          description: Per-repo freshness breakdown against the primary build server.
+          items:
+            $ref: "#/components/schemas/RepoCheck"
+      required: [country_code, url, out_of_date, last_sync, tier, overall_status, checks]
+    RepoCheck:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Repo path probed on the mirror (e.g. x86_64/cachyos).
+        status:
+          type: string
+          enum: [synced, out-of-sync, error]
+          description: Per-repo sync status; error means the lastupdate probe failed.
+        last_updated:
+          type: string
+          format: date-time
+          nullable: true
+          description: Repo lastupdate timestamp on the mirror as UTC, null on error.
+        sync_lag_seconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: >-
+            Seconds this repo is behind the primary build server (may be
+            negative if ahead). Null when there is no baseline or on error.
+      required: [path, status, last_updated, sync_lag_seconds]
     MirrorsResponse:
       type: object
       properties:

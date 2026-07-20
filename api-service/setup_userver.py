@@ -40,7 +40,7 @@ def main():
             exit(1)
 
         os.chdir(SRC_PATH + "/third_party/userver")
-        subprocess.run(["git", "checkout", "0e927d5a751972a4261ccd1b0c26d23a5eb9ab9a"])
+        subprocess.run(["git", "checkout", "eed18325a434a0c85f9c3f0581dad84ccc04c2ac"])
         subprocess.run(["patch", "-Np1", "-i", SRC_PATH + "/fix-postgresql.patch"])
 
 

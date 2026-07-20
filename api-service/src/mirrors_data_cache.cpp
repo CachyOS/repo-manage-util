@@ -150,8 +150,6 @@ std::vector<MirrorMetadata> MirrorsDataCache::FetchMirrorlist() const {
     // on failure userver keeps the last good cache data
     const auto response = http_client_.CreateRequest()
                               .get(mirrorlist_url_)
-                              .http_version(userver::http::HttpVersion::k11)
-                              .headers({{"Connection", "close"}})
                               .retry(2)
                               .timeout(request_timeout_)
                               .perform();
@@ -164,8 +162,6 @@ std::optional<MirrorsDataCache::Timestamp> MirrorsDataCache::FetchRepoTimestamp(
     try {
         const auto response = http_client_.CreateRequest()
                                   .get(join_timestamp_url(base_url, repo_path))
-                                  .http_version(userver::http::HttpVersion::k11)
-                                  .headers({{"Connection", "close"}})
                                   .timeout(request_timeout_)
                                   .perform();
         if (!response->IsOk()) {

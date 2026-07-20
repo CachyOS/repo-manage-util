@@ -151,7 +151,7 @@ index 10ade4513..40fb2200a 100644
            /usr/lib/postgresql/12/lib
            /usr/lib/postgresql/13/lib
 diff --git a/postgresql/pq-extra/CMakeLists.txt b/postgresql/pq-extra/CMakeLists.txt
-index b5bd233d9..1c19de1e6 100644
+index 105002574..77d9278e1 100644
 --- a/postgresql/pq-extra/CMakeLists.txt
 +++ b/postgresql/pq-extra/CMakeLists.txt
 @@ -8,7 +8,7 @@ add_library(${PROJECT_NAME} STATIC ${PQ_EXTRA_SOURCES})
@@ -177,7 +177,7 @@ index c27f74b28..7c68a19b6 100644
  if("addr" IN_LIST SANITIZERS_LIST)
      target_compile_definitions(${PROJECT_NAME} PUBLIC "BOOST_USE_ASAN")
 diff --git a/universal/CMakeLists.txt b/universal/CMakeLists.txt
-index c14bf72c1..f31670553 100644
+index 488d1d1ef..20a47a92f 100644
 --- a/universal/CMakeLists.txt
 +++ b/universal/CMakeLists.txt
 @@ -9,7 +9,7 @@ if(TARGET userver-core)
@@ -221,42 +221,4 @@ index c14bf72c1..f31670553 100644
 +    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
      )
  endif()
-
-From ab21f07194dc40a9ca3550f3e9814f8da6c4965d Mon Sep 17 00:00:00 2001
-From: Emil Goncharov <emikmanga@gmail.com>
-Date: Sat, 6 Jun 2026 18:57:59 -0400
-Subject: [PATCH] fix universal: fix random generator initialization in C++23
-
----
- universal/src/utils/rand.cpp | 11 ++++-------
- 1 file changed, 4 insertions(+), 7 deletions(-)
-
-diff --git a/universal/src/utils/rand.cpp b/universal/src/utils/rand.cpp
-index 3a5850004aaf..49eac6b454c6 100644
---- a/universal/src/utils/rand.cpp
-+++ b/universal/src/utils/rand.cpp
-@@ -8,11 +8,6 @@ namespace utils {
- 
- namespace {
- 
--template <typename T>
--auto& AsLvalue(T&& rvalue) noexcept {
--    return rvalue;
--}
--
- compiler::ThreadLocal local_random_impl = [] { return impl::RandomImpl{}; };
- 
- }  // namespace
-@@ -34,8 +29,10 @@ std::seed_seq MakeSeedSeq() {
- }
- 
- RandomImpl::RandomImpl()
--    : gen_(AsLvalue(impl::MakeSeedSeq()))
--{}
-+    : gen_([] {
-+          auto seed_seq = MakeSeedSeq();
-+          return decltype(gen_){seed_seq};
-+      }()) {}
- 
- compiler::ThreadLocalScope<RandomImpl> UseLocalRandomImpl() { return local_random_impl.Use(); }
  

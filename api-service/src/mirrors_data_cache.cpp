@@ -32,13 +32,10 @@
 
 #include <userver/clients/http/component.hpp>
 #include <userver/clients/http/response.hpp>
+#include <userver/components/component_context.hpp>
 #include <userver/engine/async.hpp>
 #include <userver/engine/get_all.hpp>
 #include <userver/engine/task/task_with_result.hpp>
-#include <userver/http/url.hpp>
-#include <userver/logging/log.hpp>
-#include <userver/utils/from_string.hpp>
-#include <userver/utils/text_light.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 
 #if defined(__clang__)
@@ -49,28 +46,11 @@
 
 namespace {
 
-namespace text = userver::utils::text;
 using service::mirrors::MirrorStatus;
 using service::mirrors::RepoCheck;
 using service::mirrors::RepoStatus;
 
-inline constexpr std::string_view kLastUpdateEndpoint = "lastupdate";
-
-// Builds `<base_url>/<repo_path>/lastupdate`.
-auto join_timestamp_url(std::string_view base_url, std::string_view repo_path) -> std::string {
-    std::string url{base_url};
-    if (url.empty() || url.back() != '/') {
-        url.push_back('/');
-    }
-
-    const auto segments = text::SplitIntoStringViewVector(repo_path, "/")
-        | std::ranges::views::transform(userver::http::UrlEncodePathSegment)
-        | std::ranges::to<std::vector<std::string>>();
-    url.append(text::Join(segments, "/"));
-    url.push_back('/');
-    url.append(kLastUpdateEndpoint);
-    return url;
-}
+inline constexpr std::size_t kDefaultMaxConcurrentMirrors = 32;
 
 struct MirrorAggregate {
     MirrorStatus overall_status = MirrorStatus::kError;
@@ -78,7 +58,7 @@ struct MirrorAggregate {
     std::optional<std::int64_t> delay_seconds;
 };
 
-// Derives the mirror-level status and lag summary purely from its per-repo checks.
+// Derives the mirror-level status and lag summary from its per-repo checks.
 auto classify_mirror(const std::vector<RepoCheck>& checks) -> MirrorAggregate {
     std::size_t synced{};
     std::size_t errored{};
@@ -133,7 +113,8 @@ MirrorsDataCache::MirrorsDataCache(
     primary_mirror_url_(config["primary-mirror-url"].As<std::string>()),
     repo_paths_(config["repo-paths"].As<std::vector<std::string>>()),
     request_timeout_(config["request-timeout"].As<std::chrono::milliseconds>()),
-    sync_tolerance_(config["sync-tolerance"].As<std::chrono::seconds>()) { }
+    sync_tolerance_(config["sync-tolerance"].As<std::chrono::seconds>()),
+    mirror_semaphore_(config["max-concurrent-mirrors"].As<std::size_t>(kDefaultMaxConcurrentMirrors)) { }
 
 void MirrorsDataCache::Update(
     userver::cache::UpdateType,
@@ -157,55 +138,24 @@ std::vector<MirrorMetadata> MirrorsDataCache::FetchMirrorlist() const {
     return ParseMirrorlist(response->body_view());
 }
 
-std::optional<MirrorsDataCache::Timestamp> MirrorsDataCache::FetchRepoTimestamp(
-    std::string_view base_url, std::string_view repo_path) const {
-    try {
-        const auto response = http_client_.CreateRequest()
-                                  .get(join_timestamp_url(base_url, repo_path))
-                                  .timeout(request_timeout_)
-                                  .perform();
-        if (!response->IsOk()) {
-            return std::nullopt;
-        }
-
-        const auto parsed = userver::utils::FromStringNoThrow<std::int64_t>(
-            text::TrimView(response->body_view()));
-        if (!parsed.has_value()) {
-            return std::nullopt;
-        }
-        return Timestamp{std::chrono::microseconds{parsed.value()}};
-    } catch (const std::exception& ex) {
-        LOG_DEBUG("Failed to fetch repo timestamp for '{}' from '{}': {}",
-            repo_path, base_url, ex.what());
-        return std::nullopt;
-    }
-}
-
 MirrorsData MirrorsDataCache::ComputeMirrorsData() const {
     const auto mirror_metadata_list = FetchMirrorlist();
 
-    auto baseline_tasks = repo_paths_ | std::ranges::views::transform([this](const auto& repo_path) {
-        return userver::engine::AsyncNoTracing(
-            [this, &repo_path] { return FetchRepoTimestamp(primary_mirror_url_, repo_path); });
-    }) | std::ranges::to<std::vector>();
-
-    const auto baseline_timestamps = userver::engine::GetAll(baseline_tasks);
-    BaselineMap baseline_map;
-    baseline_map.reserve(repo_paths_.size());
-    for (const auto& [repo_path, timestamp] : std::ranges::views::zip(repo_paths_, baseline_timestamps)) {
-        baseline_map.try_emplace(repo_path, timestamp);
-    }
+    const auto& baselines = fetch_repo_timestamps(
+        {.client = http_client_, .base_url = primary_mirror_url_, .timeout = request_timeout_}, repo_paths_);
+    const auto& baseline_map = std::ranges::views::zip(repo_paths_, baselines) | std::ranges::to<BaselineMap>();
 
     auto mirror_tasks = mirror_metadata_list | std::ranges::views::transform([this, &baseline_map](const auto& mirror_metadata) {
         return userver::engine::AsyncNoTracing(
             [this, &mirror_metadata, &baseline_map] {
+                const userver::engine::SemaphoreLock lock{mirror_semaphore_};
                 return BuildMirrorEntry(mirror_metadata, baseline_map);
             });
     }) | std::ranges::to<std::vector>();
 
     MirrorsData result{.mirrors = userver::engine::GetAll(mirror_tasks)};
 
-    const auto sort_key = [](const MirrorEntry& m) {
+    constexpr auto sort_key = [](const MirrorEntry& m) {
         return std::tuple(
             m.out_of_date,
             m.tier,
@@ -213,20 +163,13 @@ MirrorsData MirrorsDataCache::ComputeMirrorsData() const {
             -m.last_sync.value_or(Timestamp{}).time_since_epoch().count(),
             std::string_view{m.url});
     };
-    std::ranges::sort(result.mirrors, std::less<>{}, sort_key);
+    std::ranges::sort(result.mirrors, std::less<>{}, std::move(sort_key));
 
     return result;
 }
 
 MirrorEntry MirrorsDataCache::BuildMirrorEntry(
     const MirrorMetadata& mirror_metadata, const BaselineMap& baseline_map) const {
-    auto timestamp_tasks = repo_paths_ | std::ranges::views::transform([this, &mirror_metadata](const auto& repo_path) {
-        return userver::engine::AsyncNoTracing(
-            [this, &mirror_metadata, &repo_path] {
-                return FetchRepoTimestamp(mirror_metadata.url, repo_path);
-            });
-    }) | std::ranges::to<std::vector>();
-
     MirrorEntry mirror{
         .out_of_date         = false,
         .tier                = mirror_metadata.tier,
@@ -240,7 +183,8 @@ MirrorEntry MirrorsDataCache::BuildMirrorEntry(
 
     mirror.checks.reserve(repo_paths_.size());
 
-    const auto timestamps = userver::engine::GetAll(timestamp_tasks);
+    const auto& timestamps = fetch_repo_timestamps(
+        {.client = http_client_, .base_url = mirror_metadata.url, .timeout = request_timeout_}, repo_paths_);
     for (const auto& [repo_path, timestamp] : std::ranges::views::zip(repo_paths_, timestamps)) {
         RepoCheck check{
             .path             = repo_path,
@@ -300,6 +244,9 @@ properties:
         items:
             type: string
             description: Repo path appended to a mirror base URL when fetching lastupdate
+    max-concurrent-mirrors:
+        type: integer
+        description: Max mirrors probed at once
     request-timeout:
         type: string
         description: Timeout (duration, e.g. 2s) for outbound mirror requests

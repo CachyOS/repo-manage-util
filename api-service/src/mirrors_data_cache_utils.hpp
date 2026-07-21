@@ -44,9 +44,6 @@ enum class MirrorStatus : std::uint8_t {
     kError,
 };
 
-auto to_json_string(RepoStatus status) -> std::string_view;
-auto to_json_string(MirrorStatus status) -> std::string_view;
-
 struct RepoCheck {
     std::string path;
     std::optional<std::chrono::system_clock::time_point> last_updated;

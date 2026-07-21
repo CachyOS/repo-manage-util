@@ -24,10 +24,12 @@
 #include <userver/cache/caching_component_base.hpp>
 #include <userver/clients/http/client.hpp>
 #include <userver/components/component_config.hpp>
+#include <userver/engine/semaphore.hpp>
 #include <userver/yaml_config/schema.hpp>
 
 #include "mirrors_data_cache_utils.hpp"
 #include "mirrors_mirrorlist_parser.hpp"
+#include "mirrors_probe.hpp"
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -37,6 +39,11 @@
 
 namespace service::mirrors {
 
+/// @brief Mirror freshness, refreshed by probing the `lastupdate` file of every
+/// tracked repo path on every mirror and comparing it against the primary build
+/// server.
+///
+/// See GetStaticConfigSchema() for the supported options.
 class MirrorsDataCache final : public userver::components::CachingComponentBase<MirrorsData> {
  public:
     // `kName` is used as the component name in static config
@@ -55,12 +62,9 @@ class MirrorsDataCache final : public userver::components::CachingComponentBase<
     static userver::yaml_config::Schema GetStaticConfigSchema();
 
  private:
-    using Timestamp   = std::chrono::system_clock::time_point;
     using BaselineMap = std::unordered_map<std::string, std::optional<Timestamp>>;
 
     std::vector<MirrorMetadata> FetchMirrorlist() const;
-    std::optional<Timestamp> FetchRepoTimestamp(
-        std::string_view base_url, std::string_view repo_path) const;
     MirrorsData ComputeMirrorsData() const;
     MirrorEntry BuildMirrorEntry(
         const MirrorMetadata& mirror_metadata, const BaselineMap& baseline_map) const;
@@ -71,6 +75,10 @@ class MirrorsDataCache final : public userver::components::CachingComponentBase<
     std::vector<std::string> repo_paths_;
     std::chrono::milliseconds request_timeout_;
     std::chrono::seconds sync_tolerance_;
+
+    // Bounds how many mirrors are probed at once
+    // mutable: ComputeMirrorsData is const, SemaphoreLock needs a non-const ref.
+    mutable userver::engine::Semaphore mirror_semaphore_;
 };
 
 }  // namespace service::mirrors

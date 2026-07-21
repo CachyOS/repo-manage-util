@@ -3,6 +3,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -60,17 +61,17 @@ constexpr userver::utils::TrivialBiMap kMirrorStatusNames = [](auto selector) {
         .Case("error", MirrorStatus::kError);
 };
 
-}  // namespace
-
-namespace service::mirrors {
-
-auto to_json_string(RepoStatus status) -> std::string_view {
+constexpr auto to_json_string(RepoStatus status) noexcept -> std::string_view {
     return kRepoStatusNames.TryFindBySecond(status).value();
 }
 
-auto to_json_string(MirrorStatus status) -> std::string_view {
+constexpr auto to_json_string(MirrorStatus status) noexcept -> std::string_view {
     return kMirrorStatusNames.TryFindBySecond(status).value();
 }
+
+}  // namespace
+
+namespace service::mirrors {
 
 userver::formats::json::Value Serialize(
     const RepoCheck& check,

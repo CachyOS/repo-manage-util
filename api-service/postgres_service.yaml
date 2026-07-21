@@ -39,6 +39,12 @@ components_manager:
       load-enabled: true
     # /// [static config congestion-control]
 
+    http-client:
+    http-client-core:
+      fs-task-processor: fs-task-processor
+      user-agent: RepoManageServer/1.0.0
+      threads: 1
+
     # /// [testsuite only]
     handler-ping:
       load-enabled: $testsuite-enabled
@@ -47,11 +53,6 @@ components_manager:
       task_processor: main-task-processor
       throttling_enabled: false
       url_trailing_slash: strict-match
-
-    http-client:
-    http-client-core:
-      fs-task-processor: fs-task-processor
-      user-agent: RepoManageServer/1.0.0
 
     tests-control:
       load-enabled: $testsuite-enabled
@@ -92,6 +93,7 @@ components_manager:
         # unix-socket: /var/run/production_service/service.socket
         port: $server-port
         port#fallback: 8085
+        max_connections: 16384
         connection:
           in_buffer_size: 32768
           requests_queue_size_threshold: 100
@@ -164,8 +166,9 @@ components_manager:
     # /// [our API endpoints]
 
     mirrors-data-cache:
-      update-interval: 5m
+      update-interval: 10m
       first-update-fail-ok: true
+      max-concurrent-mirrors: 32
       mirrorlist-url: https://raw.githubusercontent.com/CachyOS/CachyOS-PKGBUILDS/refs/heads/master/cachyos-mirrorlist/cachyos-mirrorlist
       primary-mirror-url: https://build.cachyos.org/repo
       request-timeout: 2s

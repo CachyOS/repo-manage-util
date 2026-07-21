@@ -113,6 +113,7 @@ target_compile_features(project_options INTERFACE cxx_std_23)
 add_executable(api-postgresql-service
    src/http_utils.cpp
    src/mirrors_mirrorlist_parser.cpp
+   src/mirrors_probe.cpp
    src/mirrors_data_cache.cpp
    src/mirrors_data_cache_utils.cpp
    src/mirrors_data_handler.cpp
@@ -167,6 +168,8 @@ userver_testsuite_add_simple(
 add_executable(${PROJECT_NAME}-unittest
     src/mirrors_mirrorlist_parser_test.cpp
     src/mirrors_mirrorlist_parser.cpp
+    src/mirrors_data_cache_test.cpp
+    src/mirrors_probe.cpp
 )
 target_link_libraries(${PROJECT_NAME}-unittest PRIVATE project_options userver::utest)
 target_include_directories(${PROJECT_NAME}-unittest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
